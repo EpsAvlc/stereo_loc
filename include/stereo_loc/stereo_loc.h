@@ -10,7 +10,9 @@
 #include <iostream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
+#include <thread>
 
+#include "goal_viewer.h"
 class StereoLoc
 {
 public:
@@ -24,4 +26,6 @@ private:
     cv::Mat left_K_, right_K_;
     cv::Mat left_P_, right_P_;
     float baseline_;
+    GoalViewer goal_viewer_;
+    std::thread viewer_thread_;
 };

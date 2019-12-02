@@ -22,5 +22,7 @@ int main()
 
     StereoLoc sl("/home/cm/Workspaces/stereo_loc/src/stereo_loc/config/gazebo.yaml");
     sl.CalcPose(left_img, right_img);
+    imshow("left_img", left_img);
     waitKey(0);
+    // while(1);
 }

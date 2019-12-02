@@ -11,3 +11,13 @@ rightCam_cx: 640.5
 rightCam_cy: 360.5
 
 baseline: 0.2
+
+
+
+window_width: 1280
+window_height: 720
+
+viewer_point_x: 0
+viewer_point_y: 0
+viewer_point_z: -2
+viewer_point_f: 762.725

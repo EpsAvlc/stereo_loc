@@ -9,6 +9,8 @@
 
 #include "stereo_loc.h"
 
+#include <cmath>
+
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
@@ -18,7 +20,7 @@
 using namespace std;
 using namespace cv;
 
-StereoLoc::StereoLoc(string config_file_path)
+StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
 {
     FileStorage fs(config_file_path, FileStorage::READ);
     assert(fs.isOpened());
@@ -52,13 +54,16 @@ StereoLoc::StereoLoc(string config_file_path)
     blob_params_.filterByArea = true;
     blob_params_.minArea = 100;
     blob_params_.maxArea = 1000000;
-    // blob_params_.filterByCircularity = false;
-    // blob_params_.minCircularity = 0.7;
+    blob_params_.filterByCircularity = true;
+    blob_params_.minCircularity = 0.7;
     // blob_params_.
     blob_params_.filterByColor = true;
     blob_params_.blobColor = 0;
 
     blob_detector_ = SimpleBlobDetector::create(blob_params_);
+
+    /***** Start goal viewer *****/
+    viewer_thread_ = thread(&GoalViewer::Run, &goal_viewer_);
 }
 
 bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
@@ -66,34 +71,54 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     vector<Point2f> left_points, right_points;
     if(!findCornerSubPix(left_img, left_points))
     {
-        cout << "Can't find two corners in left image" << endl;
+        cout << "["<< __FUNCTION__  <<"]:Can't find two corners in left image" << endl;
         return false;
     }
     if(!findCornerSubPix(right_img, right_points))
     {
-        cout << "Can't find two corners in right image" << endl;
+        cout << "["<< __FUNCTION__  <<"]:Can't find two corners in right image" << endl;
         return false;
     }
 
     Point3f left_corner = triangulation(left_points[0], right_points[0]);
     Point3f right_corner = triangulation(left_points[1], right_points[1]);
-    cout << left_corner << endl;
-    cout << right_corner << endl;
+
+    Eigen::Vector3f t;
+    t.x() = left_corner.x;
+    t.y() = left_corner.y;
+    t.z() = left_corner.z;
+    
+    float yaw = atan((left_corner.z - right_corner.z) 
+    / fabs(left_corner.x - right_corner.x));
+
+    Eigen::Matrix3f R = Eigen::Matrix3f::Zero();
+    R(0, 0) = cos(yaw);
+    R(0, 2) = sin(yaw);
+    R(1, 1) = 1;
+    R(2, 1) = -sin(yaw);
+    R(2, 2) = cos(yaw);
+    Eigen::Matrix3f R_c_w = Eigen::Matrix3f::Zero();
+    R_c_w(0, 1) = 1;
+    R_c_w(1, 2) = -1;
+    R_c_w(2, 0) = 1;
+    R = R*R_c_w;
+    goal_viewer_.UpdatePose(R, t);
 }
 
 bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
 {
     vector<KeyPoint> key_corners;
     blob_detector_->detect(img, key_corners);
+
+    /***** display keypoint *****/
+    // Mat kp_image;
+    // drawKeypoints(img, key_corners, kp_image, Scalar(255, 0, 0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+    // imshow("keypoints", kp_image);
+
     if(key_corners.size() != 2)
     {
         return false;
     }
-
-    // display keypoint
-    // Mat kp_image;
-    // drawKeypoints(img, key_corners, kp_image, Scalar(255, 0, 0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-    // imshow("keypoints", kp_image);
 
     /***** refine keypoints *****/
     const float dilate_ratio = 0.2f;
