@@ -1,0 +1,13 @@
+%YAML:1.0
+
+leftCam_fx: 762.725
+leftCam_fy: 762.725
+leftCam_cx: 640.5
+leftCam_cy: 360.5
+
+rightCam_fx: 762.725
+rightCam_fy: 762.725
+rightCam_cx: 640.5
+rightCam_cy: 360.5
+
+baseline: 0.2
