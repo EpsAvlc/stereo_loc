@@ -70,9 +70,10 @@ void Location::stereoCB(const sensor_msgs::ImageConstPtr& left_image_msg, const 
 
     if(!sl_.CalcPose(left_ptr->image, right_ptr->image))
     {
-        imwrite("/home/cm/Workspaces/stereo_loc/src/stereo_loc/imgs/left_img.png", left_ptr->image);
-        imwrite("/home/cm/Workspaces/stereo_loc/src/stereo_loc/imgs/right_img.png", right_ptr->image);
+        // imwrite("/home/cm/Workspaces/stereo_loc/src/stereo_loc/imgs/left_img.png", left_ptr->image);
+        // imwrite("/home/cm/Workspaces/stereo_loc/src/stereo_loc/imgs/right_img.png", right_ptr->image);
     }
+    waitKey(10);
 }
 
 int main(int argc, char**argv)

@@ -162,7 +162,7 @@
   <link name="imu_link"/>
 
   <joint name="camera1_joint" type="fixed">
-    <origin xyz="0 -0.1 0.5" rpy="0 0 0"/>
+    <origin xyz="0 -0.2 0.5" rpy="0 0 0"/>
     <parent link="base_link"/>
     <child link="camera1_link"/>
   </joint>
@@ -170,7 +170,7 @@
   <xacro:left_camera prefix="camera1"/>
 
   <joint name="camera2_joint" type="fixed">
-    <origin xyz="0.0 0.1 0.5" rpy="0 0 0"/>
+    <origin xyz="0.0 0.2 0.5" rpy="0 0 0"/>
     <parent link="base_link"/>
     <child link="camera2_link"/>
   </joint>

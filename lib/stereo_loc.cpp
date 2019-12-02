@@ -108,12 +108,13 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
 bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
 {
     vector<KeyPoint> key_corners;
+    
     blob_detector_->detect(img, key_corners);
 
     /***** display keypoint *****/
-    // Mat kp_image;
-    // drawKeypoints(img, key_corners, kp_image, Scalar(255, 0, 0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
-    // imshow("keypoints", kp_image);
+    Mat kp_image;
+    drawKeypoints(img, key_corners, kp_image, Scalar(255, 0, 0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+    imshow("keypoints", kp_image);
 
     if(key_corners.size() != 2)
     {
@@ -126,14 +127,19 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
     {
         float roi_size = key_corners[i].size;
         Point2f c = key_corners[i].pt;
-        Mat roi = img(Rect(c.x - roi_size / 2*(1 + dilate_ratio), c.y - roi_size / 2 * (1 + dilate_ratio), roi_size * (1+dilate_ratio), roi_size*(1 + dilate_ratio)));
+        float start_x = max(0.0001f, c.x - roi_size / 2*(1 + dilate_ratio));
+        float start_y = max(0.0001f, c.y - roi_size / 2*(1 + dilate_ratio));
+        float len_x = min(roi_size * (1+dilate_ratio), img.cols - start_x);
+        float len_y = min(roi_size * (1+dilate_ratio), img.rows - start_y);
+        Mat roi = img(Rect(start_x, start_y, len_x, len_y));
 
         cvtColor(roi, roi, COLOR_BGR2GRAY);
+        GaussianBlur(roi, roi, Size(3,3), 1);
         Mat bin_roi;
-        threshold(roi, bin_roi, 12, 255, THRESH_BINARY_INV);
+        threshold(roi, bin_roi, 4, 255, THRESH_BINARY_INV);
         // imshow("bin_roi", bin_roi);
         vector<vector<Point>> contours;
-        findContours(bin_roi, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+        findContours(bin_roi, contours, RETR_EXTERNAL, CHAIN_APPROX_NONE);
         if(contours.size() != 1)
         {
             cout << "["<< __FUNCTION__  <<"]:find more than one contours in the" << i+1 << "corner image!"<< endl;
@@ -141,8 +147,17 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
         }
         RotatedRect min_rect= minAreaRect(contours[0]);
         Point2f final_corner;
-        final_corner.x = c.x - roi_size / 2*(1 + dilate_ratio) + min_rect.center.x;
-        final_corner.y = c.y - roi_size / 2*(1 + dilate_ratio) + min_rect.center.y; 
+        // for(int i = 0; i < contours[0].size(); i++)
+        // {
+        //     final_corner.x += contours[0][i].x;
+        //     final_corner.y += contours[0][i].y;
+        // }
+        // final_corner.x /= contours[0].size();
+        // final_corner.y /= contours[0].size();
+        final_corner.x = min_rect.center.x;
+        final_corner.y = min_rect.center.y;
+        final_corner.x += c.x - roi_size / 2*(1 + dilate_ratio);
+        final_corner.y += c.y - roi_size / 2*(1 + dilate_ratio);
         corners.push_back(final_corner);
     }
 
