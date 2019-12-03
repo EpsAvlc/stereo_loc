@@ -104,23 +104,24 @@ void GoalViewer::drawGoal()
     glVertex3f(0, 3, -goal_height);
     glEnd();
 
-    glLineWidth(6);
+    glLineWidth(3);
+    glColor3f(1, 1, 1);
     glBegin(GL_LINES);
     glVertex3f(0, 0, 0);
     glVertex3f(1.5, 0, 0);
     glVertex3f(1.5, 0, 0);
-    glVertex3f(2, 0, -2);
-    glVertex3f(2, 0, -2);
-    glVertex3f(0, 0, -2);
+    glVertex3f(2, 0, -goal_height);
+    glVertex3f(2, 0, -goal_height);
+    glVertex3f(0, 0, -goal_height);
 
     glVertex3f(0, 3, 0);
     glVertex3f(1.5, 3, 0);
     glVertex3f(1.5, 3, 0);
-    glVertex3f(2, 3, -2);
-    glVertex3f(2, 3, -2);
-    glVertex3f(0, 3, -2);
-    glVertex3f(0, 3, -2);
-    glVertex3f(0, 0, -2);
+    glVertex3f(2, 3, -goal_height);
+    glVertex3f(2, 3, -goal_height);
+    glVertex3f(0, 3, -goal_height);
+    glVertex3f(0, 3, -goal_height);
+    glVertex3f(0, 0, -goal_height);
     glEnd();
     glPopMatrix();
 }

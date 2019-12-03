@@ -51,10 +51,8 @@ Location::Location(ros::NodeHandle& nh, ros::NodeHandle& nh_local) : nh_(nh), nh
     left_img_sub_.subscribe(nh_, left_cam_topic_ + "/image_raw", 5);
     right_img_sub_.subscribe(nh_, right_cam_topic_ + "/image_raw", 5);
 
-    // cout << left_cam_topic_ + "/image_raw" << endl;    
     sync_.reset(new stereo_sync(stereo_policy(10), left_img_sub_, right_img_sub_));
     sync_->registerCallback(boost::bind(&Location::stereoCB, this, _1, _2));
-    cout << "register fishend" << endl;
 }
 
 void Location::readParam()
