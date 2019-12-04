@@ -68,31 +68,31 @@ StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
 
 bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
 {
-    vector<Point2f> left_points, right_points;
-    if(!findCornerSubPix(left_img, left_points))
+    vector<Point2f> left_corners_2d, right_corners_2d;
+    if(!findCornerSubPix(left_img, left_corners_2d))
     {
         cout << "["<< __FUNCTION__  <<"]:Can't find two corners in left image" << endl;
         return false;
     }
-    if(!findCornerSubPix(right_img, right_points))
+    if(!findCornerSubPix(right_img, right_corners_2d))
     {
         cout << "["<< __FUNCTION__  <<"]:Can't find two corners in right image" << endl;
         return false;
     }
 
-    Point3f left_corner = triangulation(left_points[0], right_points[0]);
-    Point3f right_corner = triangulation(left_points[1], right_points[1]);
+    Point3f left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
+    Point3f right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
-    cout << left_corner << endl;
-    cout << right_corner << endl;
+    cout << left_corner_3d << endl;
+    cout << right_corner_3d << endl;
 
     Eigen::Vector3f t;
-    t.x() = left_corner.x;
-    t.y() = left_corner.y;
-    t.z() = left_corner.z;
+    t.x() = left_corner_3d.x;
+    t.y() = left_corner_3d.y;
+    t.z() = left_corner_3d.z;
     
-    float yaw = atan((left_corner.z - right_corner.z) 
-    / fabs(left_corner.x - right_corner.x));
+    float yaw = atan((left_corner_3d.z - right_corner_3d.z) 
+    / fabs(left_corner_3d.x - right_corner_3d.x));
 
     Eigen::Matrix3f R = Eigen::Matrix3f::Zero();
     R(0, 0) = cos(yaw);
@@ -106,14 +106,14 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     R_c_w(2, 0) = 1;
     R = R*R_c_w;
 
-    calcCornersByLine(left_img, left_points);
-    calcCornersByLine(right_img, right_points);
+    calcCornersByLine(left_img, left_corners_2d);
+    calcCornersByLine(right_img, right_corners_2d);
 
-    left_corner = triangulation(left_points[0], right_points[0]);
-    right_corner = triangulation(left_points[1], right_points[1]);
+    left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
+    right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
-    cout << left_corner << endl;
-    cout << right_corner << endl;
+    cout << left_corner_3d << endl;
+    cout << right_corner_3d << endl;
 
     goal_viewer_.UpdatePose(R, t);
 }
