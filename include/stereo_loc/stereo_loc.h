@@ -49,8 +49,6 @@ private:
      * @return cv::Point3f triangulated 3D point
      */
     cv::Point3f triangulation(const cv::Point2f& l_p, const cv::Point2f& r_p);
-    // TODO: Draw goal in image.
-    void drawGoalInImage(const cv::Mat& img);
     /**
      * @brief Draw lines on image. The lines are in the form of rho/theta
      * 
@@ -83,11 +81,20 @@ private:
      * @return cv::Point2f the centre of gravity.
      */
     cv::Point2f calcCentreOfGravity(const cv::Mat& img);
+    /**
+     * @brief 
+     * 
+     * @param img 
+     * @param left_corner_loc
+     * @param R 
+     */
+    void drawGoalOnImage(cv::Mat& img, const cv::Point3f& left_corner, const cv::Point3f& right_corner);
+
     cv::Ptr<cv::SimpleBlobDetector> blob_detector_;
     cv::SimpleBlobDetector::Params blob_params_;
     cv::Mat left_K_, right_K_;
-    cv::Mat left_P_, right_P_;
     float baseline_;
     GoalViewer goal_viewer_;
     std::thread viewer_thread_;
+    float goal_height_, goal_length_, goal_width1_, goal_width2_;
 };

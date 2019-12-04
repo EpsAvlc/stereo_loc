@@ -17,6 +17,8 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 
+#include <opencv2/core/eigen.hpp>
+
 using namespace std;
 using namespace cv;
 
@@ -38,17 +40,14 @@ StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
     fs["rightCam_cy"] >> right_cy;
     right_K_ = (Mat_<float>(3, 3) << right_fx, 0, right_cx, 0, right_fy, right_cy, 0, 0, 1);
 
+    /***** For drawing *****/
     fs["baseline"] >> baseline_;
+    fs["goal_height"] >> goal_height_;
+    fs["goal_width1"] >> goal_width1_;
+    fs["goal_width2"] >> goal_width2_;
+    fs["goal_length"] >> goal_length_;
 
-    left_P_ = (Mat_<float>(3, 4) << left_fx, 0, left_cx, 0, 
-                                    0, left_fy, left_cx, 0,
-                                    0, 0, 1, 0);
-
-    Mat T = (Mat_<float>(3, 4) << 1, 0, 0, -baseline_, 
-                                    0, 1, 0, 0,
-                                    0, 0, 1, 0);
-    right_P_ = right_K_ * T; 
-
+    /***** Init blob parameters *****/
     blob_params_.minThreshold = 10;
     blob_params_.maxThreshold = 100;
     blob_params_.filterByArea = true;
@@ -56,7 +55,6 @@ StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
     blob_params_.maxArea = 1000000;
     blob_params_.filterByCircularity = true;
     blob_params_.minCircularity = 0.7;
-    // blob_params_.
     blob_params_.filterByColor = true;
     blob_params_.blobColor = 0;
 
@@ -91,29 +89,32 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     t.y() = left_corner_3d.y;
     t.z() = left_corner_3d.z;
     
-    float yaw = atan((left_corner_3d.z - right_corner_3d.z) 
-    / fabs(left_corner_3d.x - right_corner_3d.x));
+    float pitch = atan((right_corner_3d.z - left_corner_3d.z) 
+    / (right_corner_3d.x - left_corner_3d.x));
 
     Eigen::Matrix3f R = Eigen::Matrix3f::Zero();
-    R(0, 0) = cos(yaw);
-    R(0, 2) = sin(yaw);
+    R(0, 0) = cos(pitch);
+    R(0, 2) = sin(pitch);
     R(1, 1) = 1;
-    R(2, 1) = -sin(yaw);
-    R(2, 2) = cos(yaw);
+    R(2, 1) = -sin(pitch);
+    R(2, 2) = cos(pitch);
     Eigen::Matrix3f R_c_w = Eigen::Matrix3f::Zero();
     R_c_w(0, 1) = 1;
     R_c_w(1, 2) = -1;
     R_c_w(2, 0) = 1;
     R = R*R_c_w;
 
-    calcCornersByLine(left_img, left_corners_2d);
-    calcCornersByLine(right_img, right_corners_2d);
+    // calcCornersByLine(left_img, left_corners_2d);
+    // calcCornersByLine(right_img, right_corners_2d);
 
-    left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
-    right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
+    // left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
+    // right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
-    cout << left_corner_3d << endl;
-    cout << right_corner_3d << endl;
+    // cout << left_corner_3d << endl;
+    // cout << right_corner_3d << endl;
+
+    Mat left_img_clone = left_img.clone();
+    drawGoalOnImage(left_img_clone, left_corner_3d, right_corner_3d);
 
     goal_viewer_.UpdatePose(R, t);
 }
@@ -199,9 +200,11 @@ Point3f StereoLoc::triangulation(const Point2f& l_p, const Point2f& r_p)
 
     Eigen::Vector3f A = r_x_hat * R * l_x_3;
     Eigen::Vector3f b = -r_x_hat * t; 
-    float s1 = 0;
-    s1 = ((A.transpose() * A).inverse() * (A.transpose() * b))(0, 0);
-    return Point3f(s1*r_x_3.x(), s1*r_x_3.y(), s1*r_x_3.z());
+    float s2 = ((A.transpose() * A).inverse() * (A.transpose() * b))(0, 0);
+    A = R * l_x_3;
+    b = s2*r_x_3 - t;
+    float s1 = ((A.transpose() * A).inverse() * (A.transpose() * b))(0, 0);
+    return Point3f(s1*l_x_3.x(), s1*l_x_3.y(), s1*l_x_3.z());
 }
 
 Point2f StereoLoc::calcCentreOfGravity(const cv::Mat& img)
@@ -366,4 +369,60 @@ Point2f StereoLoc::calcLineInsection(const Vec2f& line1, const Vec2f& line2)
 	y = (A*Y2 - B*Y1) / (X1*Y2 - X2*Y1);
 	x = (B*X1 - A*X2) / (Y1*X2 - Y2*X1);
 	return cv::Point2f(x, y);
+}
+
+void StereoLoc::drawGoalOnImage(Mat& img, const Point3f& left_corner, const Point3f& right_corner)
+{
+    float pitch = atan((right_corner.z - left_corner.z) 
+    / (right_corner.x - left_corner.x));
+
+    // left front up, right front up, left front down, right front down...
+    Eigen::MatrixXf pts_3d(3, 8);
+    pts_3d(0, 0) = left_corner.x;
+    pts_3d(1, 0) = left_corner.y;
+    pts_3d(2, 0) = left_corner.z;
+    pts_3d(0, 1) = right_corner.x;
+    pts_3d(1, 1) = right_corner.y;
+    pts_3d(2, 1) = right_corner.z;
+    pts_3d(0, 2) = left_corner.x;
+    pts_3d(1, 2) = left_corner.y + goal_height_;
+    pts_3d(2, 2) = left_corner.z;
+    pts_3d(0, 3) = pts_3d(0, 1);
+    pts_3d(1, 3) = pts_3d(1, 1) + goal_height_;
+    pts_3d(2, 3) = pts_3d(2, 1);
+    pts_3d(0, 4) = pts_3d(0, 0) - goal_width2_ * sin(pitch);
+    pts_3d(1, 4) = pts_3d(1, 0);
+    pts_3d(2, 4) = pts_3d(2, 0) + goal_width2_ * cos(pitch);    
+    pts_3d(0, 5) = pts_3d(0, 4) + goal_length_ * cos(pitch);
+    pts_3d(1, 5) = pts_3d(1, 4);
+    pts_3d(2, 5) = pts_3d(2, 4) + goal_length_ * sin(pitch);
+    pts_3d(0, 6) = pts_3d(0, 2) - goal_width1_ * sin(pitch);
+    pts_3d(1, 6) = pts_3d(1, 2);
+    pts_3d(2, 6) = pts_3d(2, 2) + goal_width1_ * cos(pitch);
+    pts_3d(0, 7) = pts_3d(0, 3) - goal_width1_ * sin(pitch);
+    pts_3d(1, 7) = pts_3d(1, 3);
+    pts_3d(2, 7) = pts_3d(2, 3) + goal_width1_ * cos(pitch);
+    Eigen::Matrix3f left_K_eigen;
+    cv2eigen(left_K_, left_K_eigen);
+    Eigen::MatrixXf pts_2d_eigen = left_K_eigen * pts_3d;
+
+    Point2f pts_2d[8];
+    for(int i = 0; i < pts_2d_eigen.cols(); i++)
+    {
+        pts_2d[i].x = pts_2d_eigen(0, i) / pts_2d_eigen(2, i);
+        pts_2d[i].y = pts_2d_eigen(1, i) / pts_2d_eigen(2, i); 
+    }
+
+    line(img, pts_2d[0], pts_2d[1], Scalar(0, 0, 255), 7);
+    line(img, pts_2d[0], pts_2d[2], Scalar(0, 0, 255), 7);
+    line(img, pts_2d[1], pts_2d[3], Scalar(0, 0, 255), 7);
+    line(img, pts_2d[0], pts_2d[4], Scalar(0, 0, 255), 3);
+    line(img, pts_2d[5], pts_2d[4], Scalar(0, 0, 255), 3);
+    line(img, pts_2d[6], pts_2d[4], Scalar(0, 0, 255), 3);
+    line(img, pts_2d[7], pts_2d[5], Scalar(0, 0, 255), 3);
+    line(img, pts_2d[1], pts_2d[5], Scalar(0, 0, 255), 3);
+    line(img, pts_2d[2], pts_2d[6], Scalar(0, 0, 255), 3);
+    line(img, pts_2d[3], pts_2d[7], Scalar(0, 0, 255), 3);
+    line(img, pts_2d[6], pts_2d[7], Scalar(0, 0, 255), 3);
+    imshow("pts", img);
 }
