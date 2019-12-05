@@ -81,9 +81,30 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     Point3f left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
     Point3f right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
-    cout << left_corner_3d << endl;
-    cout << right_corner_3d << endl;
+    Eigen::MatrixXf left_P(3, 4); 
+    left_P = Eigen::MatrixXf::Zero(3, 4);
+    left_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f left_K_eigen;
+    cv2eigen(left_K_, left_K_eigen);
+    left_P = left_K_eigen * left_P;
+    bool left_successed = calcCornersByLine(left_img, left_corner_3d, right_corner_3d, left_P, left_corners_2d);
 
+    Eigen::MatrixXf right_P(3, 4);
+    right_P = Eigen::MatrixXf::Zero(3, 4);
+    right_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
+    right_P(0, 3) = baseline_;
+    Eigen::Matrix3f right_K_eigen;
+    cv2eigen(right_K_, right_K_eigen);
+    right_P = right_K_eigen * right_P;
+    bool right_successed = calcCornersByLine(right_img, left_corner_3d, right_corner_3d, right_P, right_corners_2d);
+
+    if(!(right_successed && left_successed))
+        return false;
+
+    left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
+    right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
+
+    /***** for viewer *****/
     Eigen::Vector3f t;
     t.x() = left_corner_3d.x;
     t.y() = left_corner_3d.y;
@@ -93,28 +114,19 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     / (right_corner_3d.x - left_corner_3d.x));
 
     Eigen::Matrix3f R = Eigen::Matrix3f::Zero();
-    R(0, 0) = cos(pitch);
-    R(0, 2) = sin(pitch);
+    R(0, 0) = cos(-pitch);
+    R(0, 2) = sin(-pitch);
     R(1, 1) = 1;
-    R(2, 1) = -sin(pitch);
-    R(2, 2) = cos(pitch);
+    R(2, 1) = -sin(-pitch);
+    R(2, 2) = cos(-pitch);
     Eigen::Matrix3f R_c_w = Eigen::Matrix3f::Zero();
     R_c_w(0, 1) = 1;
     R_c_w(1, 2) = -1;
     R_c_w(2, 0) = 1;
     R = R*R_c_w;
 
-    // calcCornersByLine(left_img, left_corners_2d);
-    // calcCornersByLine(right_img, right_corners_2d);
-
-    // left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
-    // right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
-
-    // cout << left_corner_3d << endl;
-    // cout << right_corner_3d << endl;
-
     Mat left_img_clone = left_img.clone();
-    drawGoalOnImage(left_img_clone, left_corner_3d, right_corner_3d);
+    drawGoal(left_img_clone, left_corner_3d, right_corner_3d, Scalar(0, 0, 255));
 
     goal_viewer_.UpdatePose(R, t);
 }
@@ -225,18 +237,71 @@ Point2f StereoLoc::calcCentreOfGravity(const cv::Mat& img)
     return Point2f(moment_01 / moment_00, moment_10 / moment_00);
 }
 
-bool StereoLoc::calcCornersByLine(const cv::Mat& img,  vector<Point2f>& corners)
+bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d, const Point3f& right_corner_3d, const Eigen::MatrixXf& P, vector<Point2f>& refine_corners_2d)
 {
+    // cout <<" enter " << endl;
     Mat gray_img;
     cvtColor(img, gray_img, COLOR_BGR2GRAY);
     Mat bin_img;
     // adaptiveThreshold(gray_img, bin_img, 255, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_BINARY, 3, 0);
-    Canny(gray_img, bin_img, 50, 150);
+    Canny(gray_img, bin_img, 25, 150);
     imshow("canny", bin_img);
 
-	vector<Vec2f> lines;
-	HoughLines(bin_img, lines, 1, CV_PI/180, 125, 0, 0);
+    /***** remove internal contours *****/
+    Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
+    Mat bin_img_closed;
+    morphologyEx(bin_img, bin_img_closed, MORPH_CLOSE, element);
+    vector<vector<Point>> contours;
+    vector<Vec4i> hierarchy;
+    findContours(bin_img_closed, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
+    Mat contour_mat(img.size(), CV_8UC1, Scalar(0));
+    // for(int i = 0; i < contours.size(); i++)
+    // {
+    //     drawContours(contour_mat, contours, i, Scalar(255), 1, 8, hierarchy, 0);
+    // }
+    drawContours(contour_mat, contours, 0, Scalar(255));
+    drawContours(contour_mat, contours, hierarchy[0][3], Scalar(255));
+    imshow("contour_mat", contour_mat);
+    /***** construct mask *****/
+    Eigen::MatrixXf pts_4d(4, 4);
+    pts_4d(0, 0) = left_corner_3d.x;
+    pts_4d(1, 0) = left_corner_3d.y;
+    pts_4d(2, 0) = left_corner_3d.z;
+    pts_4d(3, 0) = 1;
+    pts_4d(0, 1) = right_corner_3d.x;
+    pts_4d(1, 1) = right_corner_3d.y;
+    pts_4d(2, 1) = right_corner_3d.z;
+    pts_4d(3, 1) = 1;
+    pts_4d(0, 2) = left_corner_3d.x;
+    pts_4d(1, 2) = left_corner_3d.y + goal_height_;
+    pts_4d(2, 2) = left_corner_3d.z;
+    pts_4d(3, 2) = 1;
+    pts_4d(0, 3) = pts_4d(0, 1);
+    pts_4d(1, 3) = pts_4d(1, 1) + goal_height_;
+    pts_4d(2, 3) = pts_4d(2, 1);
+    pts_4d(3, 3) = 1;
 
+    Eigen::MatrixXf pts_homo_2d = P * pts_4d;
+    vector<Point2f> pts_2d;
+    for(int i = 0; i < pts_4d.cols(); i++)
+    {
+        Point2f cur_pt;
+        cur_pt.x = pts_homo_2d(0, i) / pts_homo_2d(2, i); 
+        cur_pt.y = pts_homo_2d(1, i) / pts_homo_2d(2, i); 
+        pts_2d.push_back(cur_pt);
+    }
+
+    Mat line_mask(img.size(), CV_8UC1, Scalar(0));
+    line(line_mask, pts_2d[0], pts_2d[1], Scalar(255), 50);
+    line(line_mask, pts_2d[0], pts_2d[2], Scalar(255), 50);
+    line(line_mask, pts_2d[1], pts_2d[3], Scalar(255), 50);
+    
+    Mat bin_img_roi;
+    bin_img.copyTo(bin_img_roi, line_mask);
+    // cout << bin_img_roi.channels() << endl;
+
+	vector<Vec2f> lines;
+	HoughLines(bin_img_roi, lines, 1, CV_PI/180, 100, 20, 0);
     /***** for vertical lines *****/
     vector<Vec2f> vertical_lines;
     for(int i = 0; i < lines.size(); i++)
@@ -244,6 +309,11 @@ bool StereoLoc::calcCornersByLine(const cv::Mat& img,  vector<Point2f>& corners)
         float rho = lines[i][0], theta = lines[i][1];
         if((theta <= 0.01) || (CV_PI - theta <= 0.01))
             vertical_lines.push_back(lines[i]);
+    }
+
+    if(vertical_lines.size() < 4)
+    {
+        return false;
     }
 
     sort(vertical_lines.begin(), vertical_lines.end(), [](Vec2f& lhs, Vec2f& rhs)
@@ -276,13 +346,12 @@ bool StereoLoc::calcCornersByLine(const cv::Mat& img,  vector<Point2f>& corners)
             break;
         }
     }
-    // cout << middle_index << endl;
     vertical_lines[1] = vertical_lines[left_index];
     vertical_lines[2] = vertical_lines[right_index];
     vertical_lines[3] = vertical_lines[vertical_lines.size()-1];
     vertical_lines.resize(4);
 
-    // drawLines(vertical_lines, gray_img, 1);
+    drawLines(vertical_lines, gray_img, 1);
 
     /***** for horizon lines *****/
     vector<Vec2f> horizon_lines;
@@ -297,6 +366,14 @@ bool StereoLoc::calcCornersByLine(const cv::Mat& img,  vector<Point2f>& corners)
     {   
         return lhs[0] < rhs[0];
     });
+    if(horizon_lines.size() > 2)
+    {
+        swap(horizon_lines[1], horizon_lines[horizon_lines.size() - 1]);
+    }
+    if(horizon_lines.size() < 2)
+    {
+        return false;
+    }
     horizon_lines.resize(2);
     
     Vec2f horizon_pillar_line;
@@ -310,13 +387,12 @@ bool StereoLoc::calcCornersByLine(const cv::Mat& img,  vector<Point2f>& corners)
 
     Point2f right_point = calcLineInsection(right_pillar_line, horizon_pillar_line);
 
-    circle(gray_img, left_point, 3, Scalar(255), -1);
-    circle(gray_img, right_point, 3, Scalar(255), -1);
+    drawLines(horizon_lines, gray_img, 1);
 
     imshow("gray_img", gray_img);
 
-    corners[0] = left_point;
-    corners[1] = right_point;
+    refine_corners_2d[0] = left_point;
+    refine_corners_2d[1] = right_point;
 }
 
 void StereoLoc::drawLines(const vector<Vec2f> lines, Mat& out_img, int line_width)
@@ -371,13 +447,13 @@ Point2f StereoLoc::calcLineInsection(const Vec2f& line1, const Vec2f& line2)
 	return cv::Point2f(x, y);
 }
 
-void StereoLoc::drawGoalOnImage(Mat& img, const Point3f& left_corner, const Point3f& right_corner)
+void StereoLoc::drawGoal(Mat& img, const Point3f& left_corner, const Point3f& right_corner, const Scalar& color)
 {
     float pitch = atan((right_corner.z - left_corner.z) 
     / (right_corner.x - left_corner.x));
 
     // left front up, right front up, left front down, right front down...
-    Eigen::MatrixXf pts_3d(3, 8);
+    Eigen::MatrixXf pts_3d(3, 12);
     pts_3d(0, 0) = left_corner.x;
     pts_3d(1, 0) = left_corner.y;
     pts_3d(2, 0) = left_corner.z;
@@ -402,27 +478,58 @@ void StereoLoc::drawGoalOnImage(Mat& img, const Point3f& left_corner, const Poin
     pts_3d(0, 7) = pts_3d(0, 3) - goal_width1_ * sin(pitch);
     pts_3d(1, 7) = pts_3d(1, 3);
     pts_3d(2, 7) = pts_3d(2, 3) + goal_width1_ * cos(pitch);
+    pts_3d(0, 8) = (left_corner.x + right_corner.x) / 2;
+    pts_3d(1, 8) = left_corner.y + goal_height_ / 2;
+    pts_3d(2, 8) = left_corner.z;
+    pts_3d(0, 9) = (left_corner.x + right_corner.x) / 2;
+    pts_3d(1, 9) = left_corner.y + goal_height_ / 2 - goal_height_ / 4;
+    pts_3d(2, 9) = left_corner.z;
+    pts_3d(0, 10) = (left_corner.x + right_corner.x) / 2 + goal_height_ / 4;
+    pts_3d(1, 10) = left_corner.y + goal_height_ / 2;
+    pts_3d(2, 10) = left_corner.z;
+    pts_3d(0, 11) = (left_corner.x + right_corner.x) / 2;
+    pts_3d(1, 11) = left_corner.y + goal_height_ / 2;
+    pts_3d(2, 11) = left_corner.z - goal_height_ / 4;;
+
     Eigen::Matrix3f left_K_eigen;
     cv2eigen(left_K_, left_K_eigen);
     Eigen::MatrixXf pts_2d_eigen = left_K_eigen * pts_3d;
 
-    Point2f pts_2d[8];
+    Point2f pts_2d[12];
     for(int i = 0; i < pts_2d_eigen.cols(); i++)
     {
         pts_2d[i].x = pts_2d_eigen(0, i) / pts_2d_eigen(2, i);
         pts_2d[i].y = pts_2d_eigen(1, i) / pts_2d_eigen(2, i); 
     }
 
-    line(img, pts_2d[0], pts_2d[1], Scalar(0, 0, 255), 7);
-    line(img, pts_2d[0], pts_2d[2], Scalar(0, 0, 255), 7);
-    line(img, pts_2d[1], pts_2d[3], Scalar(0, 0, 255), 7);
-    line(img, pts_2d[0], pts_2d[4], Scalar(0, 0, 255), 3);
-    line(img, pts_2d[5], pts_2d[4], Scalar(0, 0, 255), 3);
-    line(img, pts_2d[6], pts_2d[4], Scalar(0, 0, 255), 3);
-    line(img, pts_2d[7], pts_2d[5], Scalar(0, 0, 255), 3);
-    line(img, pts_2d[1], pts_2d[5], Scalar(0, 0, 255), 3);
-    line(img, pts_2d[2], pts_2d[6], Scalar(0, 0, 255), 3);
-    line(img, pts_2d[3], pts_2d[7], Scalar(0, 0, 255), 3);
-    line(img, pts_2d[6], pts_2d[7], Scalar(0, 0, 255), 3);
-    imshow("pts", img);
+    line(img, pts_2d[0], pts_2d[1], color, 7);
+    line(img, pts_2d[0], pts_2d[2], color, 7);
+    line(img, pts_2d[1], pts_2d[3], color, 7);
+    line(img, pts_2d[0], pts_2d[4], color, 3);
+    line(img, pts_2d[5], pts_2d[4], color, 3);
+    line(img, pts_2d[6], pts_2d[4], color, 3);
+    line(img, pts_2d[7], pts_2d[5], color, 3);
+    line(img, pts_2d[1], pts_2d[5], color, 3);
+    line(img, pts_2d[2], pts_2d[6], color, 3);
+    line(img, pts_2d[3], pts_2d[7], color, 3);
+    line(img, pts_2d[6], pts_2d[7], color, 3);
+
+    drawArrow(img, pts_2d[8], pts_2d[9], 17, 15, Scalar(255, 0, 0), 2);
+    drawArrow(img, pts_2d[8], pts_2d[10], 17, 15, Scalar(0, 255, 0), 2);
+    drawArrow(img, pts_2d[8], pts_2d[11], 17, 15, Scalar(255, 0, 255), 2);
+
+    imshow("line", img);
+}
+
+void StereoLoc::drawArrow(cv::Mat& img, cv::Point pStart, cv::Point pEnd, int len, int alpha, const cv::Scalar& color, int thickness, int lineType)
+{
+    Point arrow;
+    double angle = atan2((double)(pStart.y - pEnd.y), (double)(pStart.x - pEnd.x));
+    line(img, pStart, pEnd, color, thickness, lineType);
+    arrow.x = pEnd.x + len * cos(angle + CV_PI * alpha / 180);
+    arrow.y = pEnd.y + len * sin(angle + CV_PI * alpha / 180);
+    line(img, pEnd, arrow, color, thickness, lineType);
+    arrow.x = pEnd.x + len * cos(angle - CV_PI * alpha / 180);
+    arrow.y = pEnd.y + len * sin(angle - CV_PI * alpha / 180);
+    line(img, pEnd, arrow, color, thickness, lineType);
 }

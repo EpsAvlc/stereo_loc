@@ -65,7 +65,7 @@ private:
      * @return true if successfully get corners.
      * @return false if failed to get corners.
      */
-    bool calcCornersByLine(const cv::Mat& img, std::vector<cv::Point2f>& corners);
+    bool calcCornersByLine(const cv::Mat& img, const cv::Point3f& left_corner, const cv::Point3f& right_corner, const Eigen::MatrixXf& P, std::vector<cv::Point2f>& refine_corners_2d);
     /**
      * @brief calculate the intersection point of two lines.
      * 
@@ -82,13 +82,28 @@ private:
      */
     cv::Point2f calcCentreOfGravity(const cv::Mat& img);
     /**
+     * @brief Draw a goal on a image.
+     * 
+     * @param img [input/output] image
+     * @param left_corner [input] left corner's 3d position
+     * @param right_corner [input] right corner's 3d position
+     * @param color [input] the color of the goal
+     */
+    void drawGoal(cv::Mat& img, const cv::Point3f& left_corner, const cv::Point3f& right_corner, const cv::Scalar& color);
+
+    /**
      * @brief 
      * 
      * @param img 
-     * @param left_corner_loc
-     * @param R 
+     * @param pStart 
+     * @param pEnd 
+     * @param len 
+     * @param alpha 
+     * @param color 
+     * @param thickness 
+     * @param lintType 
      */
-    void drawGoalOnImage(cv::Mat& img, const cv::Point3f& left_corner, const cv::Point3f& right_corner);
+    void drawArrow(cv::Mat& img, cv::Point pStart, cv::Point pEnd, int len, int alpha, const cv::Scalar& color, int thickness = 1, int lintType = 8);
 
     cv::Ptr<cv::SimpleBlobDetector> blob_detector_;
     cv::SimpleBlobDetector::Params blob_params_;
