@@ -108,8 +108,9 @@ private:
     cv::Ptr<cv::SimpleBlobDetector> blob_detector_;
     cv::SimpleBlobDetector::Params blob_params_;
     cv::Mat left_K_, right_K_;
-    float baseline_;
+    Eigen::Vector3f t_;
+    Eigen::Matrix3f R_;
     GoalViewer goal_viewer_;
     std::thread viewer_thread_;
-    float goal_height_, goal_length_, goal_width1_, goal_width2_;
+    float goal_height_, goal_length_, goal_width1_, goal_width2_, blob_minThres_, blob_maxThres_, blob_minArea_, blob_maxArea_, blob_minCircularity_, blob_minInertiaRatio_, Canny_lowThres_, Canny_highThres_, line_roi_size_, Hough_minLength_;
 };

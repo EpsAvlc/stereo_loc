@@ -10,7 +10,8 @@ rightCam_fy: 762.725
 rightCam_cx: 640.5
 rightCam_cy: 360.5
 
-baseline: 0.4
+t: [-0.5, 0, 0]
+R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
 
 # for viewer
 window_width: 1280
@@ -26,3 +27,16 @@ goal_height: 2
 goal_length: 3
 goal_width1: 1.5
 goal_width2: 1
+
+# blob parameters
+blob_minThres: 10
+blob_maxThres: 100
+blob_minArea: 100
+blob_maxArea: 1000000
+blob_minCircularity: 0.7
+
+# Line method parameters
+line_roi_size: 50
+
+# HoughLine parameters
+Hough_minLength: 20
