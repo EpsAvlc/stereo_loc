@@ -1,17 +1,20 @@
 %YAML:1.0
 
-leftCam_fx: 762.725
-leftCam_fy: 762.725
+is_sim: 1
+
+leftCam_fx: 4541.522805992942
+leftCam_fy: 4541.522805992942
 leftCam_cx: 640.5
 leftCam_cy: 360.5
 
-rightCam_fx: 762.725
-rightCam_fy: 762.725
+rightCam_fx: 4541.522805992942
+rightCam_fy: 4541.522805992942
 rightCam_cx: 640.5
 rightCam_cy: 360.5
 
-t: [-0.5, 0, 0]
+t: [0.6, 0, 0]
 R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+
 
 # for viewer
 window_width: 1280
@@ -29,14 +32,22 @@ goal_width1: 1.5
 goal_width2: 1
 
 # blob parameters
-blob_minThres: 10
+blob_minThres: 0
 blob_maxThres: 100
 blob_minArea: 100
 blob_maxArea: 1000000
 blob_minCircularity: 0.7
+blob_minInertiaRatio: 0.0
+
+
+# Canny parameters
+Canny_lowThres: 20
+Canny_highThres: 150
 
 # Line method parameters
-line_roi_size: 50
+line_roi_size: 40
 
 # HoughLine parameters
-Hough_minLength: 20
+Hough_minLength: 120
+
+keypoint_thres: 0

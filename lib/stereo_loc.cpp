@@ -19,6 +19,8 @@
 
 #include <opencv2/core/eigen.hpp>
 
+#include "math_tools.h"
+
 using namespace std;
 using namespace cv;
 
@@ -50,6 +52,7 @@ StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
     for(int i = 0; i < 9; i++)
         R_(i) = vec_R[i];
 
+    fs["is_sim"] >> is_sim_;
     fs["goal_height"] >> goal_height_;
     fs["goal_width1"] >> goal_width1_;
     fs["goal_width2"] >> goal_width2_;
@@ -66,6 +69,7 @@ StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
     fs["Canny_highThres"] >> Canny_highThres_;
     fs["line_roi_size"] >> line_roi_size_;
     fs["Hough_minLength"] >> Hough_minLength_;
+    fs["keypoint_thres"] >> keypoint_thres_;
  
     /***** Init blob parameters *****/
     blob_params_.minThreshold = blob_minThres_;
@@ -85,6 +89,8 @@ StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
     blob_params_.filterByInertia = true;
     blob_params_.minInertiaRatio = blob_minInertiaRatio_;
     blob_params_.maxInertiaRatio = 1;
+
+    blob_params_.thresholdStep = 3;
 
     blob_detector_ = SimpleBlobDetector::create(blob_params_);
 
@@ -109,6 +115,10 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     Point3f left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
     Point3f right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
+    cout << left_corner_3d << endl;
+    cout << right_corner_3d << endl;
+
+    /***** line method ******/
     Eigen::MatrixXf left_P(3, 4); 
     left_P = Eigen::MatrixXf::Zero(3, 4);
     left_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
@@ -119,8 +129,8 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
 
     // Eigen::MatrixXf right_P(3, 4);
     // right_P = Eigen::MatrixXf::Zero(3, 4);
-    // right_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
-    // right_P(0, 3) = baseline_;
+    // right_P.block(0, 0, 3, 3) = R_;
+    // right_P.block(0, 3, 3, 1) = t_;
     // Eigen::Matrix3f right_K_eigen;
     // cv2eigen(right_K_, right_K_eigen);
     // right_P = right_K_eigen * right_P;
@@ -132,31 +142,36 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     // left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
     // right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
-    /***** for viewer *****/
-    // Eigen::Vector3f t;
-    // t.x() = left_corner_3d.x;
-    // t.y() = left_corner_3d.y;
-    // t.z() = left_corner_3d.z;
+    // cout << left_corner_3d << endl;
+    // cout << right_corner_3d << endl;
+
+    // /***** for viewer *****/
+    Eigen::Vector3f t;
+    t.x() = left_corner_3d.x;
+    t.y() = left_corner_3d.y;
+    t.z() = left_corner_3d.z;
     
-    // float pitch = atan((right_corner_3d.z - left_corner_3d.z) 
-    // / (right_corner_3d.x - left_corner_3d.x));
+    float pitch = atan((right_corner_3d.z - left_corner_3d.z) 
+    / (right_corner_3d.x - left_corner_3d.x));
 
-    // Eigen::Matrix3f R = Eigen::Matrix3f::Zero();
-    // R(0, 0) = cos(-pitch);
-    // R(0, 2) = sin(-pitch);
-    // R(1, 1) = 1;
-    // R(2, 1) = -sin(-pitch);
-    // R(2, 2) = cos(-pitch);
-    // Eigen::Matrix3f R_c_w = Eigen::Matrix3f::Zero();
-    // R_c_w(0, 1) = 1;
-    // R_c_w(1, 2) = -1;
-    // R_c_w(2, 0) = 1;
-    // R = R*R_c_w;
+    Eigen::Matrix3f R = Eigen::Matrix3f::Zero();
+    R(0, 0) = cos(-pitch);
+    R(0, 2) = sin(-pitch);
+    R(1, 1) = 1;
+    R(2, 1) = -sin(-pitch);
+    R(2, 2) = cos(-pitch);
+    Eigen::Matrix3f R_c_w = Eigen::Matrix3f::Zero();
+    R_c_w(0, 1) = 1;
+    R_c_w(1, 2) = -1;
+    R_c_w(2, 0) = 1;
+    R = R*R_c_w;
 
-    // Mat left_img_clone = left_img.clone();
-    // drawGoal(left_img_clone, left_corner_3d, right_corner_3d, Scalar(0, 0, 255));
+    Mat left_img_clone = left_img.clone();
+    drawGoal(left_img_clone, left_corner_3d, right_corner_3d, Scalar(0, 0, 255));
 
-    // goal_viewer_.UpdatePose(R, t);
+    // resize(left_img_clone, left_img_clone, Size(), 0.5, 0.5);
+    imshow("goal", left_img_clone);
+    goal_viewer_.UpdatePose(R, t);
 }
 
 bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
@@ -169,7 +184,7 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
     for(auto it = key_corners.begin(); it != key_corners.end();)
     {
         uchar color = img.at<Vec3b>(it->pt)[0];
-        if(color < 40)
+        if(color < keypoint_thres_)
         {
             it = key_corners.erase(it); 
         }
@@ -181,16 +196,16 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
 
     /***** display keypoint *****/
     // Mat kp_image;
-    // drawKeypoints(img, key_corners, kp_image, Scalar(255, 0, 0), DrawMatchesFlags::DEFAULT);
+    // drawKeypoints(img, key_corners, kp_image, Scalar(255, 0, 0), DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
     // resize(kp_image, kp_image, Size(), 0.5, 0.5);
     // imshow("keypoints", kp_image);
     // waitKey(0);
 
-    if(key_corners.size() != 2)
-    {
-        cout << key_corners.size() << endl;
-        return false;
-    }
+    // if(key_corners.size() != 2)
+    // {
+    //     cout << key_corners.size() << endl;
+    //     return false;
+    // }
 
     /***** refine keypoints *****/
     const float dilate_ratio = 0.2f;
@@ -286,15 +301,25 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     // cout <<" enter " << endl;
     Mat gray_img;
     cvtColor(img, gray_img, COLOR_BGR2GRAY);
-    Mat thres_img;
-    threshold(gray_img, thres_img, 200, 255, THRESH_BINARY);
-    //TODO: Add openning method.
-    imshow("Thres", thres_img);
     Mat bin_img;
-    Canny(gray_img, bin_img, Canny_lowThres_, Canny_highThres_);
-    Mat canny_img;
-    resize(bin_img, canny_img, Size(), 0.5, 0.5);
-    imshow("canny", canny_img);
+    if(!is_sim_)
+    {
+        Mat thres_img;
+        threshold(gray_img, thres_img, 200, 255, THRESH_BINARY);
+        Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
+        Mat bin_img_closed;
+        morphologyEx(thres_img, thres_img, MORPH_OPEN, element);
+        // imshow("Thres", thres_img);
+        Canny(thres_img, bin_img, Canny_lowThres_, Canny_highThres_);
+    }
+    else
+    {
+        Canny(gray_img, bin_img, Canny_lowThres_, Canny_highThres_);
+    }
+    
+    // Mat canny_img;
+    // resize(bin_img, canny_img, Size(), 0.5, 0.5);
+    imshow("canny", bin_img);
 
     /***** remove internal contours *****/
     // Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
@@ -347,61 +372,72 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     
     Mat bin_img_roi;
     bin_img.copyTo(bin_img_roi, line_mask);
-    
-    Mat bin_img_roi_disp;
-    resize(bin_img_roi, bin_img_roi_disp, Size(), 0.5, 0.5);
-    imshow("bin_img_roi", bin_img_roi_disp);
+
+    /***** disp_roi ******/
+    // Mat bin_img_roi_disp;
+    // resize(bin_img_roi, bin_img_roi_disp, Size(), 0.5, 0.5);
+    // imshow("bin_img_roi", bin_img_roi);
 
 	vector<Vec2f> lines;
 	HoughLines(bin_img_roi, lines, 1, CV_PI/180, Hough_minLength_, 20, 0);
+
+    /***** Display hough lines *****/
+    // drawLines(lines, gray_img, 1);
+
     /***** for vertical lines *****/
     vector<Vec2f> vertical_lines;
     for(int i = 0; i < lines.size(); i++)
     {
         float rho = lines[i][0], theta = lines[i][1];
-        if((theta <= 0.01) || (CV_PI - theta <= 0.01))
+        if((theta <= 0.03) || (CV_PI - theta <= 0.03))
             vertical_lines.push_back(lines[i]);
     }
 
     if(vertical_lines.size() < 4)
     {
+        cout << "There are not enough vertical lines. " << endl; 
         return false;
     }
+    // drawLines(vertical_lines, gray_img, 1);
+    // cout << vertical_lines.size() << endl;
 
     sort(vertical_lines.begin(), vertical_lines.end(), [](Vec2f& lhs, Vec2f& rhs)
     {   
         return lhs[0] < rhs[0];
     });
 
-    int left_index = 0;
-    for(int i = 1; i < vertical_lines.size() - 1; i++)
-    {
-        float left_dist = vertical_lines[i][0] - vertical_lines[0][0];
-        float right_dist = vertical_lines[vertical_lines.size()-1][0] - vertical_lines[i][0];
-        if(left_dist > right_dist || left_dist > 
-        (vertical_lines[vertical_lines.size()-1][0] - vertical_lines[0][0])/9)
-        {
-            left_index = i-1;
-            break;
-        }
-    }
+    // int left_index = 0;
+    // for(int i = 1; i < vertical_lines.size() - 1; i++)
+    // {
+    //     float left_dist = vertical_lines[i][0] - vertical_lines[0][0];
+    //     float right_dist = vertical_lines[vertical_lines.size()-1][0] - vertical_lines[i][0];
+    //     if(left_dist > right_dist || left_dist > 
+    //     (vertical_lines[vertical_lines.size()-1][0] - vertical_lines[0][0])/9)
+    //     {
+    //         left_index = i-1;
+    //         break;
+    //     }
+    // }
 
-    int right_index = 0;
-    for(int i = vertical_lines.size() - 2; i >= 1; i--)
-    {
-        float left_dist = vertical_lines[i][0] - vertical_lines[0][0];
-        float right_dist = vertical_lines[vertical_lines.size()-1][0] - vertical_lines[i][0];
-        if(left_dist < right_dist || right_dist > 
-        (vertical_lines[vertical_lines.size()-1][0] - vertical_lines[0][0])/9)
-        {
-            right_index = i+1;
-            break;
-        }
-    }
-    vertical_lines[1] = vertical_lines[left_index];
-    vertical_lines[2] = vertical_lines[right_index];
-    vertical_lines[3] = vertical_lines[vertical_lines.size()-1];
-    vertical_lines.resize(4);
+    // int right_index = 0;
+    // for(int i = vertical_lines.size() - 2; i >= 1; i--)
+    // {
+    //     float left_dist = vertical_lines[i][0] - vertical_lines[0][0];
+    //     float right_dist = vertical_lines[vertical_lines.size()-1][0] - vertical_lines[i][0];
+    //     if(left_dist < right_dist || right_dist > 
+    //     (vertical_lines[vertical_lines.size()-1][0] - vertical_lines[0][0])/9)
+    //     {
+    //         right_index = i+1;
+    //         break;
+    //     }
+    // }
+
+    // vertical_lines[1] = vertical_lines[left_index];
+    // vertical_lines[2] = vertical_lines[right_index];
+    // vertical_lines[3] = vertical_lines[vertical_lines.size()-1];
+    // vertical_lines.resize(4);
+
+    judgeVerticalLines(vertical_lines, img);
 
     drawLines(vertical_lines, gray_img, 1);
 
@@ -410,26 +446,29 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     for(int i = 0; i < lines.size(); i++)
     {
         float rho = lines[i][0], theta = lines[i][1];
-        if(fabs(theta - CV_PI / 2) < 0.2 )
+        if(fabs(theta - CV_PI / 2) < 0.1 )
             horizon_lines.push_back(lines[i]);
     }
 
-    sort(horizon_lines.begin(), horizon_lines.end(), [](Vec2f& lhs, Vec2f& rhs)
-    {   
-        return lhs[0] < rhs[0];
-    });
-    if(horizon_lines.size() > 2)
-    {
-        swap(horizon_lines[1], horizon_lines[horizon_lines.size() - 1]);
-    }
-    if(horizon_lines.size() < 2)
-    {
-        return false;
-    }
-    horizon_lines.resize(2);
+    judgeHorizonLines(horizon_lines, gray_img);
+    drawLines(horizon_lines, gray_img, 1);
+
+    // sort(horizon_lines.begin(), horizon_lines.end(), [](Vec2f& lhs, Vec2f& rhs)
+    // {   
+    //     return lhs[0] < rhs[0];
+    // });
+    // if(horizon_lines.size() > 2)
+    // {
+    //     swap(horizon_lines[1], horizon_lines[horizon_lines.size() - 1]);
+    // }
+    // if(horizon_lines.size() < 2)
+    // {
+    //         cout << "There are not enough horizon lines. " << endl; 
+    //     return false;
+    // }
+    // horizon_lines.resize(1);
     
-    Vec2f horizon_pillar_line;
-    horizon_pillar_line = (horizon_lines[0] + horizon_lines[1]) / 2;
+    Vec2f horizon_pillar_line = horizon_lines[0];
     
     Vec2f left_pillar_line, right_pillar_line;
     left_pillar_line = (vertical_lines[0] + vertical_lines[1]) / 2;
@@ -439,16 +478,16 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
 
     Point2f right_point = calcLineInsection(right_pillar_line, horizon_pillar_line);
 
-    drawLines(horizon_lines, gray_img, 1);
-
-    resize(gray_img, gray_img, Size(), 0.5, 0.5);
+    // resize(gray_img, gray_img, Size(), 0.5, 0.5);
     imshow("gray_img", gray_img);
 
     refine_corners_2d[0] = left_point;
     refine_corners_2d[1] = right_point;
+
+    return true;
 }
 
-void StereoLoc::drawLines(const vector<Vec2f> lines, Mat& out_img, int line_width)
+void StereoLoc::drawLines(const vector<Vec2f>& lines, Mat& out_img, int line_width)
 {
     float line_length = sqrt(out_img.cols * out_img.cols + out_img.rows * out_img.rows);
     for( size_t i = 0; i < lines.size(); i++ )
@@ -464,6 +503,22 @@ void StereoLoc::drawLines(const vector<Vec2f> lines, Mat& out_img, int line_widt
 		pt2.y = cvRound(y0 - line_length*(a));
 		line(out_img, pt1, pt2, Scalar(255), line_width, CV_AA);
 	}
+}
+
+void StereoLoc::drawLine(const Vec2f& l, Mat& out_img, int line_width)
+{
+    float line_length = sqrt(out_img.cols * out_img.cols + out_img.rows * out_img.rows);
+
+    float rho = l[0], theta = l[1];
+    // cout << theta << endl;
+    Point pt1, pt2;
+    double a = cos(theta), b = sin(theta);
+    double x0 = a*rho, y0 = b*rho;
+    pt1.x = cvRound(x0 + line_length*(-b));
+    pt1.y = cvRound(y0 + line_length*(a));
+    pt2.x = cvRound(x0 - line_length*(-b));
+    pt2.y = cvRound(y0 - line_length*(a));
+    line(out_img, pt1, pt2, Scalar(255), line_width, CV_AA);
 }
 
 Point2f StereoLoc::calcLineInsection(const Vec2f& line1, const Vec2f& line2)
@@ -506,6 +561,8 @@ void StereoLoc::drawGoal(Mat& img, const Point3f& left_corner, const Point3f& ri
     float pitch = atan((right_corner.z - left_corner.z) 
     / (right_corner.x - left_corner.x));
 
+    float roll = 0.0;
+
     // left front up, right front up, left front down, right front down...
     Eigen::MatrixXf pts_3d(3, 12);
     pts_3d(0, 0) = left_corner.x;
@@ -520,18 +577,19 @@ void StereoLoc::drawGoal(Mat& img, const Point3f& left_corner, const Point3f& ri
     pts_3d(0, 3) = pts_3d(0, 1);
     pts_3d(1, 3) = pts_3d(1, 1) + goal_height_;
     pts_3d(2, 3) = pts_3d(2, 1);
+    
     pts_3d(0, 4) = pts_3d(0, 0) - goal_width2_ * sin(pitch);
-    pts_3d(1, 4) = pts_3d(1, 0);
-    pts_3d(2, 4) = pts_3d(2, 0) + goal_width2_ * cos(pitch);    
-    pts_3d(0, 5) = pts_3d(0, 4) + goal_length_ * cos(pitch);
-    pts_3d(1, 5) = pts_3d(1, 4);
-    pts_3d(2, 5) = pts_3d(2, 4) + goal_length_ * sin(pitch);
+    pts_3d(1, 4) = pts_3d(1, 0) + goal_width2_ * sin(roll);
+    pts_3d(2, 4) = pts_3d(2, 0) + goal_width2_ * cos(pitch) * cos(roll);    
+    pts_3d(0, 5) = pts_3d(0, 1) - goal_width2_ * sin(pitch);
+    pts_3d(1, 5) = pts_3d(1, 1) + goal_width2_ * sin(roll);
+    pts_3d(2, 5) = pts_3d(2, 1) + goal_width2_ * cos(pitch) * cos(roll);    
     pts_3d(0, 6) = pts_3d(0, 2) - goal_width1_ * sin(pitch);
-    pts_3d(1, 6) = pts_3d(1, 2);
-    pts_3d(2, 6) = pts_3d(2, 2) + goal_width1_ * cos(pitch);
+    pts_3d(1, 6) = pts_3d(1, 2) + goal_width1_ * sin(roll);
+    pts_3d(2, 6) = pts_3d(2, 2) + goal_width1_ * cos(pitch) * cos(roll);
     pts_3d(0, 7) = pts_3d(0, 3) - goal_width1_ * sin(pitch);
-    pts_3d(1, 7) = pts_3d(1, 3);
-    pts_3d(2, 7) = pts_3d(2, 3) + goal_width1_ * cos(pitch);
+    pts_3d(1, 7) = pts_3d(1, 3) + goal_width1_ * sin(roll);
+    pts_3d(2, 7) = pts_3d(2, 3) + goal_width1_ * cos(pitch) * cos(roll);
     pts_3d(0, 8) = (left_corner.x + right_corner.x) / 2;
     pts_3d(1, 8) = left_corner.y + goal_height_ / 2;
     pts_3d(2, 8) = left_corner.z;
@@ -560,7 +618,7 @@ void StereoLoc::drawGoal(Mat& img, const Point3f& left_corner, const Point3f& ri
     line(img, pts_2d[0], pts_2d[2], color, 7);
     line(img, pts_2d[1], pts_2d[3], color, 7);
     line(img, pts_2d[0], pts_2d[4], color, 3);
-    line(img, pts_2d[5], pts_2d[4], color, 3);
+    // line(img, pts_2d[5], pts_2d[4], color, 3);
     line(img, pts_2d[6], pts_2d[4], color, 3);
     line(img, pts_2d[7], pts_2d[5], color, 3);
     line(img, pts_2d[1], pts_2d[5], color, 3);
@@ -571,8 +629,6 @@ void StereoLoc::drawGoal(Mat& img, const Point3f& left_corner, const Point3f& ri
     drawArrow(img, pts_2d[8], pts_2d[9], 17, 15, Scalar(255, 0, 0), 2);
     drawArrow(img, pts_2d[8], pts_2d[10], 17, 15, Scalar(0, 255, 0), 2);
     drawArrow(img, pts_2d[8], pts_2d[11], 17, 15, Scalar(255, 0, 255), 2);
-
-    imshow("line", img);
 }
 
 void StereoLoc::drawArrow(cv::Mat& img, cv::Point pStart, cv::Point pEnd, int len, int alpha, const cv::Scalar& color, int thickness, int lineType)
@@ -586,4 +642,147 @@ void StereoLoc::drawArrow(cv::Mat& img, cv::Point pStart, cv::Point pEnd, int le
     arrow.x = pEnd.x + len * cos(angle - CV_PI * alpha / 180);
     arrow.y = pEnd.y + len * sin(angle - CV_PI * alpha / 180);
     line(img, pEnd, arrow, color, thickness, lineType);
+}
+
+bool StereoLoc::judgeVerticalLines(vector<Vec2f>& vertical_lines, const Mat& img)
+{
+    if(vertical_lines.size() < 4)
+        return false;
+    if(vertical_lines.size() == 4)
+        return true;
+    vector<pair<Vec2f, Vec2f>> line_pairs;
+    for(int i = 0; i < vertical_lines.size() - 1; i++)
+    {
+        for(int j = i + 1; j < vertical_lines.size(); j++)
+        {
+            if(fabs(vertical_lines[i][0] - vertical_lines[j][0]) > img.rows / 3)
+                continue;
+            if(fabs(vertical_lines[i][0] - vertical_lines[j][0]) < 5)
+                continue;
+            if(hasInsection(vertical_lines[i], vertical_lines[j], img.rows))
+                continue;
+            line_pairs.push_back(make_pair(vertical_lines[i], vertical_lines[j]));
+        }
+    }
+
+    math_tools::GuassainDistribution theta_gd(0, 0.05), rho_dist_gd(1700, 100), rho_diff_gd(0, 5);
+    float max_prob = -1;
+    pair<int, int> max_prob_index(-1, -1);
+    for(int i = 0; i < line_pairs.size()-1; i++)
+    {
+        for(int j = i + 1; j < line_pairs.size(); j++)
+        {
+            // float theta_prob1 = theta_gd.CalcProbability(line_pairs[i].first[1] - line_pairs[i].second[1]);
+            // float theta_prob2 = theta_gd.CalcProbability(line_pairs[j].first[1] - line_pairs[j].second[1]);
+        
+            float rho_diff_prob = rho_diff_gd.CalcProbability(fabs(line_pairs[i].first[0] - line_pairs[i].second[0]) - fabs(line_pairs[j].first[0] - line_pairs[j].second[0]));
+
+            // float rho_dist_prob = rho_dist_gd.CalcProbability(line_pairs[i].first[0] - line_pairs[j].second[0]);
+
+            if(fabs(line_pairs[i].first[0] - line_pairs[j].second[0]) < img.rows / 3)
+                continue;
+
+            float cur_prob = rho_diff_prob;
+
+            // cout << "-------" << endl;
+            // cout << line_pairs[i].first[1] - line_pairs[i].second[1] << ", " << theta_prob1 << endl;
+            // cout << line_pairs[j].first[1] - line_pairs[j].second[1] << ", " << theta_prob2 << endl;
+            // // cout << rho_diff_prob << endl;
+            // cout << rho_dist_prob << endl;
+            if(cur_prob > max_prob)
+            {
+                max_prob = cur_prob;
+                max_prob_index.first = i;
+                max_prob_index.second = j;
+                // cout << rho_diff_prob << endl;
+            }
+        }
+    }
+    vertical_lines[0] = line_pairs[max_prob_index.first].first;
+    vertical_lines[1] = line_pairs[max_prob_index.first].second;
+    vertical_lines[2] = line_pairs[max_prob_index.second].first;
+    vertical_lines[3] = line_pairs[max_prob_index.second].second;
+
+    vertical_lines.resize(4);
+}
+
+bool StereoLoc::judgeHorizonLines(vector<cv::Vec2f>& horizon_lines, const Mat& img)
+{
+    Mat horizon_edges, horizon_edges_16S;
+    Sobel(img, horizon_edges, CV_8UC1, 0, 1, 3);
+    Sobel(img, horizon_edges_16S, CV_16SC1, 0, 1, 3);
+
+
+    if(!is_sim_)
+    {
+        threshold(horizon_edges, horizon_edges, 120, 255, THRESH_BINARY);
+        Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
+        Mat bin_img_closed;
+        morphologyEx(horizon_edges, horizon_edges, MORPH_OPEN, element);
+        erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
+    }
+
+    Mat horizon_edges_disp;
+    // resize(horizon_edges, horizon_edges_disp, Size(), 0.5, 0.5);
+    imshow("horizon_edges", horizon_edges);
+    imshow("horizon_edges_16S", horizon_edges_16S);
+
+    int max_vote = 0;
+    int max_vote_index = 0;
+    cout << horizon_lines.size() << endl;
+    for(int i = 0; i < horizon_lines.size(); i++)
+    {
+        Mat line_mat(img.size(), CV_8UC1, Scalar(0));
+        drawLine(horizon_lines[i], line_mat, 1);
+        Mat vote_mat;
+        //TODO: need to check.
+        // bitwise_and(line_mat, horizon_edges, vote_mat);
+        // Mat signed_vote_mat;
+        // horizon_edges_16S.copyTo(signed_vote_mat, vote_mat);
+        // Scalar edge_sum = sum(signed_vote_mat);
+        // cout << "edge_sum: " << edge_sum << endl;
+        // if(edge_sum[0] > 0)
+        //     continue;
+        // imshow("vote_mat", vote_mat);
+        // waitKey(0);
+
+
+        float rho = horizon_lines[i][0], theta = horizon_lines[i][1];
+        // cout << theta << endl;
+        double a = cos(theta), b = sin(theta);
+        double x0 = a*rho, y0 = b*rho;
+        cout << horizon_edges_16S.at<int>(y0, x0) << endl;
+
+        int cur_vote = countNonZero(vote_mat);
+        if(cur_vote > max_vote)
+        {
+            max_vote = cur_vote;
+            max_vote_index = i;
+        }
+    }
+    horizon_lines[0] = horizon_lines[max_vote_index];
+    horizon_lines.resize(1);
+    return true;
+}
+
+bool StereoLoc::hasInsection(cv::Vec2f& lhs, cv::Vec2f& rhs, int img_rows)
+{
+    float l_rho = lhs[0], l_theta = lhs[1];
+    float l_x0 = cos(l_theta)*l_rho, l_y0 = sin(l_theta)*l_rho;
+    float l_x_top = l_x0 + l_y0 * tan(l_theta);
+    float l_x_bottom =  l_x0 + (l_y0 - img_rows) * tan(l_theta);
+
+    float r_rho = rhs[0], r_theta = rhs[1];
+    float r_x0 = cos(l_theta)*r_rho, r_y0 = sin(r_theta)*r_rho;
+    float r_x_top = r_x0 + r_y0 * tan(r_theta);
+    float r_x_bottom =  r_x0 + (r_y0 - img_rows) * tan(r_theta);
+
+    // cout << l_x_top << ", " << r_x_top << endl;
+    // cout << l_x_bottom << ", " << r_x_bottom << endl;
+    // cout << "---------" << endl;
+
+    if((l_x_top - r_x_top) * (l_x_bottom - r_x_bottom) >= 0)
+        return false;
+    else
+        return true;
 }

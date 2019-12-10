@@ -1,5 +1,7 @@
 %YAML:1.0
 
+is_sim: 0
+
 leftCam_fx: 7428.34
 leftCam_fy: 7427.63
 leftCam_cx: 1402.03
@@ -17,23 +19,23 @@ R: [0.999854331209754, -0.0124309681176506, -0.0116956142529396,0.01303011719146
 window_width: 1280
 window_height: 720
 
-viewer_point_x: 0
-viewer_point_y: 0
-viewer_point_z: -1
+viewer_point_x: 2
+viewer_point_y: -1
+viewer_point_z: -30
 viewer_point_f: 7428.34
 
 # for drawing
-goal_height: 2.44
+goal_height: 2.55
 goal_length: 7.32
-goal_width1: 1.5
-goal_width2: 1
+goal_width1: 2
+goal_width2: 1.5
 
 # blob parameters
-blob_minThres: 40
-blob_maxThres: 100
-blob_minArea: 6000
-blob_maxArea: 1000000
-blob_minCircularity: 0.5
+blob_minThres: 60
+blob_maxThres: 120
+blob_minArea: 7000
+blob_maxArea: 15000
+blob_minCircularity: 0.6
 blob_minInertiaRatio: 0.4
 
 # Canny parameters
@@ -41,7 +43,9 @@ Canny_lowThres: 60
 Canny_highThres: 150
 
 # Line method parameters
-line_roi_size: 80
+line_roi_size: 120
 
 # HoughLine parameters
-Hough_minLength: 120
+Hough_minLength: 100
+
+keypoint_thres: 40
