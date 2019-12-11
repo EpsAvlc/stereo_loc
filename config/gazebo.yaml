@@ -12,7 +12,7 @@ rightCam_fy: 4541.522805992942
 rightCam_cx: 640.5
 rightCam_cy: 360.5
 
-t: [0.6, 0, 0]
+t: [-0.6, 0, 0]
 R: [1, 0, 0, 0, 1, 0, 0, 0, 1]
 
 
@@ -41,11 +41,11 @@ blob_minInertiaRatio: 0.0
 
 
 # Canny parameters
-Canny_lowThres: 20
+Canny_lowThres: 40
 Canny_highThres: 150
 
 # Line method parameters
-line_roi_size: 40
+line_roi_size: 50
 
 # HoughLine parameters
 Hough_minLength: 120

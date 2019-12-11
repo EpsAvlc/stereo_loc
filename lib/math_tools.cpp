@@ -16,3 +16,8 @@ float GuassainDistribution::CalcProbability(float x)
 {
     return (1 / (sigma_ * sqrt(2*M_PI))) * exp(-(x-mu_)*(x-mu_)/(2 * sigma_ * sigma_));
 }
+
+float LogisticRegression::CalcProbability(float x)
+{
+    return 1/(1+exp(-(x-mu_)/sigma_));
+}

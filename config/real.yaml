@@ -31,19 +31,20 @@ goal_width1: 2
 goal_width2: 1.5
 
 # blob parameters
-blob_minThres: 60
-blob_maxThres: 120
-blob_minArea: 7000
+blob_minThres: 20
+blob_maxThres: 150
+blob_minArea: 5000
 blob_maxArea: 15000
-blob_minCircularity: 0.6
-blob_minInertiaRatio: 0.4
+blob_minCircularity: 0.15
+blob_minInertiaRatio: 0.2
+blob_minConvexity: 0.8
 
 # Canny parameters
-Canny_lowThres: 60
-Canny_highThres: 150
+Canny_lowThres: 140
+Canny_highThres: 170
 
 # Line method parameters
-line_roi_size: 120
+line_roi_size: 140
 
 # HoughLine parameters
 Hough_minLength: 100

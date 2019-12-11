@@ -18,4 +18,16 @@ namespace math_tools
     private:
         float mu_, sigma_;
     };
+    /**
+     * @brief p(x) = 1/(1+exp(z-mu/sigma))
+     * 
+     */
+    class LogisticRegression
+    {
+    public:
+        LogisticRegression(float mu, float sigma) : mu_(mu), sigma_(sigma){};
+        float CalcProbability(float x);
+    private:
+        float mu_, sigma_;
+    };
 };

@@ -106,11 +106,15 @@ private:
      */
     void drawArrow(cv::Mat& img, cv::Point pStart, cv::Point pEnd, int len, int alpha, const cv::Scalar& color, int thickness = 1, int lintType = 8);
 
+    bool judgeCorners(std::vector<cv::KeyPoint>& kpts, const cv::Mat& img);
+
     bool judgeVerticalLines(std::vector<cv::Vec2f>& vertical_lines, const cv::Mat& img);
 
     bool judgeHorizonLines(std::vector<cv::Vec2f>& horizon_lines, const cv::Mat& img);
 
     bool hasInsection(cv::Vec2f& lhs, cv::Vec2f& rhs, int img_rows);
+
+    void removeNet(const cv::Mat& img, cv::Mat& out_img);
 
     cv::Ptr<cv::SimpleBlobDetector> blob_detector_;
     cv::SimpleBlobDetector::Params blob_params_;
@@ -119,6 +123,6 @@ private:
     Eigen::Matrix3f R_;
     GoalViewer goal_viewer_;
     std::thread viewer_thread_;
-    float goal_height_, goal_length_, goal_width1_, goal_width2_, blob_minThres_, blob_maxThres_, blob_minArea_, blob_maxArea_, blob_minCircularity_, blob_minInertiaRatio_, Canny_lowThres_, Canny_highThres_, line_roi_size_, Hough_minLength_, keypoint_thres_;
+    float goal_height_, goal_length_, goal_width1_, goal_width2_, blob_minThres_, blob_maxThres_, blob_minArea_, blob_maxArea_, blob_minCircularity_, blob_minInertiaRatio_, blob_minConvexity_, Canny_lowThres_, Canny_highThres_, line_roi_size_, Hough_minLength_, keypoint_thres_;
     int is_sim_;
 };
