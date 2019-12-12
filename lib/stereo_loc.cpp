@@ -24,6 +24,73 @@
 using namespace std;
 using namespace cv;
 
+bool checkEllipseShape(Mat src,vector<Point> contour,RotatedRect ellipse,double ratio=0.01)
+{
+	//get all the point on the ellipse point
+	vector<Point> ellipse_point;
+
+	//get the parameter of the ellipse
+	Point2f center = ellipse.center;
+	double a_2 = pow(ellipse.size.width*0.5,2);
+	double b_2 = pow(ellipse.size.height*0.5,2);
+	double ellipse_angle = (ellipse.angle*3.1415926)/180;
+	
+
+	//the uppart
+	for(int i=0;i<ellipse.size.width;i++)
+	{
+		double x = -ellipse.size.width*0.5+i;
+		double y_left = sqrt( (1 - (x*x/a_2))*b_2 );
+
+		//rotate
+        //[ cos(seta) sin(seta)]
+        //[-sin(seta) cos(seta)]
+        cv::Point2f rotate_point_left;
+        rotate_point_left.x =  cos(ellipse_angle)*x - sin(ellipse_angle)*y_left;
+        rotate_point_left.y = +sin(ellipse_angle)*x + cos(ellipse_angle)*y_left;
+
+		//trans
+		rotate_point_left += center;
+
+		//store
+		ellipse_point.push_back(Point(rotate_point_left));
+	}
+	//the downpart
+	for(int i=0;i<ellipse.size.width;i++)
+	{
+		double x = ellipse.size.width*0.5-i;
+		double y_right = -sqrt( (1 - (x*x/a_2))*b_2 );
+
+		//rotate
+        //[ cos(seta) sin(seta)]
+        //[-sin(seta) cos(seta)]
+        cv::Point2f rotate_point_right;
+		rotate_point_right.x =  cos(ellipse_angle)*x - sin(ellipse_angle)*y_right;
+        rotate_point_right.y = +sin(ellipse_angle)*x + cos(ellipse_angle)*y_right;
+
+		//trans
+		rotate_point_right += center;
+
+		//store
+		ellipse_point.push_back(Point(rotate_point_right));
+
+	}
+
+
+	vector<vector<Point> > contours1;
+	contours1.push_back(ellipse_point);
+	//drawContours(src,contours1,-1,Scalar(255,0,0),2);
+
+	//match shape
+	double a0 = matchShapes(ellipse_point,contour,CV_CONTOURS_MATCH_I1,0);  
+	if (a0>0.01)
+	{
+		return true;      
+	}
+
+	return false;
+}
+
 StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
 {
     FileStorage fs(config_file_path, FileStorage::READ);
@@ -128,24 +195,27 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
 
     cout << left_corner_3d << endl;
     cout << right_corner_3d << endl;
+    cout << sqrt((left_corner_3d.x - right_corner_3d.x) * (left_corner_3d.x - right_corner_3d.x) + 
+    (left_corner_3d.y - right_corner_3d.y) * (left_corner_3d.y - right_corner_3d.y)
+    +(left_corner_3d.z - right_corner_3d.z) * (left_corner_3d.z - right_corner_3d.z)) << endl;
 
     /***** line method ******/
-    Eigen::MatrixXf left_P(3, 4); 
-    left_P = Eigen::MatrixXf::Zero(3, 4);
-    left_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
-    Eigen::Matrix3f left_K_eigen;
-    cv2eigen(left_K_, left_K_eigen);
-    left_P = left_K_eigen * left_P;
-    bool left_successed = calcCornersByLine(left_img, left_corner_3d, right_corner_3d, left_P, left_corners_2d);
+    // Eigen::MatrixXf left_P(3, 4); 
+    // left_P = Eigen::MatrixXf::Zero(3, 4);
+    // left_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
+    // Eigen::Matrix3f left_K_eigen;
+    // cv2eigen(left_K_, left_K_eigen);
+    // left_P = left_K_eigen * left_P;
+    // bool left_successed = calcCornersByLine(left_img, left_corner_3d, right_corner_3d, left_P, left_corners_2d);
 
-    Eigen::MatrixXf right_P(3, 4);
-    right_P = Eigen::MatrixXf::Zero(3, 4);
-    right_P.block(0, 0, 3, 3) = R_;
-    right_P.block(0, 3, 3, 1) = t_;
-    Eigen::Matrix3f right_K_eigen;
-    cv2eigen(right_K_, right_K_eigen);
-    right_P = right_K_eigen * right_P;
-    bool right_successed = calcCornersByLine(right_img, left_corner_3d, right_corner_3d, right_P, right_corners_2d);
+    // Eigen::MatrixXf right_P(3, 4);
+    // right_P = Eigen::MatrixXf::Zero(3, 4);
+    // right_P.block(0, 0, 3, 3) = R_;
+    // right_P.block(0, 3, 3, 1) = t_;
+    // Eigen::Matrix3f right_K_eigen;
+    // cv2eigen(right_K_, right_K_eigen);
+    // right_P = right_K_eigen * right_P;
+    // bool right_successed = calcCornersByLine(right_img, left_corner_3d, right_corner_3d, right_P, right_corners_2d);
 
     // if(!(right_successed && left_successed))
     //     return false;
@@ -155,6 +225,9 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
 
     // cout << left_corner_3d << endl;
     // cout << right_corner_3d << endl;
+    // cout << sqrt((left_corner_3d.x - right_corner_3d.x) * (left_corner_3d.x - right_corner_3d.x) + 
+    // (left_corner_3d.y - right_corner_3d.y) * (left_corner_3d.y - right_corner_3d.y)
+    // +(left_corner_3d.z - right_corner_3d.z) * (left_corner_3d.z - right_corner_3d.z)) << endl;
 
     // /***** for viewer *****/
     Eigen::Vector3f t;
@@ -220,7 +293,7 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
 
 
     /***** refine keypoints *****/
-    const float dilate_ratio = 0.2f;
+    const float dilate_ratio = 0.35f;
     for(int i = 0; i < key_corners.size(); i++)
     {
         float roi_size = key_corners[i].size;
@@ -233,13 +306,37 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
 
         cvtColor(roi, roi, COLOR_BGR2GRAY);
         // GaussianBlur(roi, roi, Size(3,3), 1);
-        // imshow("roi", roi);
+        imshow("roi", roi);
         Mat bin_roi;
         threshold(roi, bin_roi, 4, 255, THRESH_BINARY_INV|THRESH_OTSU);
-        // imshow("bin_roi", bin_roi);
+        vector<vector<Point>> contours;
+        findContours(bin_roi, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+        float max_area = 0;
+        float max_area_index;
+        for(int i = 0; i < contours.size(); i++)
+        {
+            if(contours[i].size() < 5)
+                continue;
+            RotatedRect rr = fitEllipse(contours[i]);
+            if(checkEllipseShape(bin_roi, contours[i], rr) == false)
+            {
+                if(rr.size.area() > max_area)
+                {
+                    max_area = rr.size.area();
+                    max_area_index = i;
+                }
+            }
+   
+        }
+        Mat contour_mat(bin_roi.size(), CV_8UC1, Scalar(0));
+        drawContours(contour_mat, contours, max_area_index, Scalar(255), -1);
+        imshow("bin_roi", bin_roi);
+ 
 
-        Point2f final_corner = calcCentreOfGravity(bin_roi);
-
+        Point2f final_corner = calcCentreOfGravity(contour_mat);
+        circle(contour_mat, final_corner, 2, Scalar(0), -1);
+        imshow("contour_mat", contour_mat);
+        waitKey(0);
         final_corner.x += c.x - roi_size / 2*(1 + dilate_ratio);
         final_corner.y += c.y - roi_size / 2*(1 + dilate_ratio);
         corners.push_back(final_corner);
@@ -317,17 +414,20 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     equalizeHist(gray_img, gray_img);
     Mat bin_img;
     Mat img_no_net;
+    Mat img_no_net_eq;
     if(!is_sim_)
     {
  
         removeNet(img, img_no_net);
         // Mat thres_img;
-        // threshold(gray_img, thres_img, 200, 255, THRESH_BINARY);
+        // threshold(gray_img, thres_img, 100, 255, THRESH_BINARY|THRESH_OTSU);
         // Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
         // Mat bin_img_closed;
         // morphologyEx(thres_img, thres_img, MORPH_OPEN, element);
         // imshow("Thres", thres_img);
-        Canny(img_no_net, bin_img, Canny_lowThres_, Canny_highThres_);
+
+        equalizeHist(img_no_net, img_no_net_eq);
+        Canny(img_no_net_eq, bin_img, Canny_lowThres_, Canny_highThres_);
 
     }
     else
@@ -338,22 +438,7 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     Mat canny_img;
     resize(bin_img, canny_img, Size(), 0.5, 0.5);
     imshow("canny", canny_img);
-
-    /***** remove internal contours *****/
-    // Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
-    // Mat bin_img_closed;
-    // morphologyEx(bin_img, bin_img_closed, MORPH_CLOSE, element);
-    // vector<vector<Point>> contours;
-    // vector<Vec4i> hierarchy;
-    // findContours(bin_img_closed, contours, hierarchy, RETR_TREE, CHAIN_APPROX_SIMPLE);
-    // Mat contour_mat(img.size(), CV_8UC1, Scalar(0));
-    // // for(int i = 0; i < contours.size(); i++)
-    // // {
-    // //     drawContours(contour_mat, contours, i, Scalar(255), 1, 8, hierarchy, 0);
-    // // }
-    // drawContours(contour_mat, contours, 0, Scalar(255));
-    // drawContours(contour_mat, contours, hierarchy[0][3], Scalar(255));
-    // imshow("contour_mat", contour_mat);
+;
     /***** construct mask *****/
     Eigen::MatrixXf pts_4d(4, 4);
     pts_4d(0, 0) = left_corner_3d.x;
@@ -398,7 +483,7 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
 
 	vector<Vec2f> lines;
 	HoughLines(bin_img_roi, lines, 1, CV_PI/180, Hough_minLength_, 20, 0);
-    vector<Vec4i> linesP;
+    // vector<Vec4i> linesP;
  
 
     /***** Display hough lines *****/
@@ -410,7 +495,11 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     {
         float rho = lines[i][0], theta = lines[i][1];
         if((theta <= 0.03) || (CV_PI - theta <= 0.03))
+        {
+            // if(lines[i][0] < 0)
+            //     lines[i][0] = -lines[i][0];
             vertical_lines.push_back(lines[i]);
+        }
     }
 
     if(vertical_lines.size() < 4)
@@ -418,85 +507,44 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
         cout << "There are not enough vertical lines. " << endl; 
         return false;
     }
-    // drawLines(vertical_lines, gray_img, 1);
+  
     // cout << vertical_lines.size() << endl;
 
     sort(vertical_lines.begin(), vertical_lines.end(), [](Vec2f& lhs, Vec2f& rhs)
     {   
         return lhs[0] < rhs[0];
     });
+    Mat gray_img_disp = img_no_net.clone();
 
-    // int left_index = 0;
-    // for(int i = 1; i < vertical_lines.size() - 1; i++)
-    // {
-    //     float left_dist = vertical_lines[i][0] - vertical_lines[0][0];
-    //     float right_dist = vertical_lines[vertical_lines.size()-1][0] - vertical_lines[i][0];
-    //     if(left_dist > right_dist || left_dist > 
-    //     (vertical_lines[vertical_lines.size()-1][0] - vertical_lines[0][0])/9)
-    //     {
-    //         left_index = i-1;
-    //         break;
-    //     }
-    // }
+    cvtColor(gray_img_disp, gray_img_disp, COLOR_GRAY2BGR);
 
-    // int right_index = 0;
-    // for(int i = vertical_lines.size() - 2; i >= 1; i--)
-    // {
-    //     float left_dist = vertical_lines[i][0] - vertical_lines[0][0];
-    //     float right_dist = vertical_lines[vertical_lines.size()-1][0] - vertical_lines[i][0];
-    //     if(left_dist < right_dist || right_dist > 
-    //     (vertical_lines[vertical_lines.size()-1][0] - vertical_lines[0][0])/9)
-    //     {
-    //         right_index = i+1;
-    //         break;
-    //     }
-    // }
-
-    // vertical_lines[1] = vertical_lines[left_index];
-    // vertical_lines[2] = vertical_lines[right_index];
-    // vertical_lines[3] = vertical_lines[vertical_lines.size()-1];
-    // vertical_lines.resize(4);
-
-    judgeVerticalLines(vertical_lines, img_no_net);
-
+    // drawLines(vertical_lines, gray_img_disp, 1, Scalar(255, 255, 255));
+    judgeVerticalLines(vertical_lines, img_no_net_eq);
+    drawLine(vertical_lines[0], gray_img_disp, 2, Scalar(255, 0, 0));
+    drawLine(vertical_lines[1], gray_img_disp, 2, Scalar(0, 255, 0));
+    drawLine(vertical_lines[2], gray_img_disp, 2, Scalar(0, 0, 255));
+    drawLine(vertical_lines[3], gray_img_disp, 2, Scalar(255, 255, 0));
 
     /***** for horizon lines *****/
+    // HoughLines(bin_img_roi, lines, 2, CV_PI/180, Hough_minLength_ + 75, 20, 0);
     vector<Vec2f> horizon_lines;
-    for(int i = 0; i < lines.size(); i++)
-    {
-        float rho = lines[i][0], theta = lines[i][1];
-        if(fabs(theta - CV_PI / 2) < 0.1 )
-            horizon_lines.push_back(lines[i]);
-    }
-    // drawLines(horizon_lines, gray_img, 1);
-    judgeHorizonLines(horizon_lines, gray_img);
-
-    Mat gray_img_disp = gray_img.clone();
-    cvtColor(gray_img_disp, gray_img_disp, COLOR_GRAY2BGR);
-    // drawLines(vertical_lines, gray_img_disp, 1);
-    // drawLines(horizon_lines, gray_img_disp, 1);
-
-    HoughLinesP(bin_img_roi, linesP, 1, CV_PI/180, 100, 50, 50);
-    for(int i = 0; i < linesP.size(); i++)
-    {
-        line( gray_img_disp, Point(linesP[i][0], linesP[i][1]),
-        Point( linesP[i][2], linesP[i][3]), Scalar(255), 1, 8 );
-    }
-
-    // sort(horizon_lines.begin(), horizon_lines.end(), [](Vec2f& lhs, Vec2f& rhs)
-    // {   
-    //     return lhs[0] < rhs[0];
-    // });
-    // if(horizon_lines.size() > 2)
+    // for(int i = 0; i < lines.size(); i++)
     // {
-    //     swap(horizon_lines[1], horizon_lines[horizon_lines.size() - 1]);
+    //     float rho = lines[i][0], theta = lines[i][1];
+
+    //     if(fabs(theta - CV_PI / 2) < CV_PI/180 * 6)
+    //         horizon_lines.push_back(lines[i]);
     // }
-    // if(horizon_lines.size() < 2)
-    // {
-    //         cout << "There are not enough horizon lines. " << endl; 
-    //     return false;
-    // }
-    // horizon_lines.resize(1);
+    // drawLines(horizon_lines, gray_img_disp, 1, Scalar(0, 0, 255));
+    // judgeHorizonLines(horizon_lines, img_no_net_eq);
+    horizon_lines[0][1] = atan2(-(pts_2d[0].x - pts_2d[1].x), (pts_2d[0].y - pts_2d[1].y));
+
+    float y_left = pts_2d[0].y + pts_2d[0].x / tan(horizon_lines[0][1]);
+    circle(gray_img_disp, Point(0, y_left), 20, Scalar(0, 0, 255), -1);
+    horizon_lines[0][0] = y_left * sin(horizon_lines[0][1]);
+    
+    drawLines(horizon_lines, gray_img_disp, 3, Scalar(255, 0, 255));
+
     
     Vec2f horizon_pillar_line = horizon_lines[0];
     
@@ -518,6 +566,8 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     circle(gray_img_disp, left_point, 5, Scalar(0), -1);
     putText(gray_img_disp, "right", right_point, FONT_HERSHEY_PLAIN, 3, Scalar(128), 2);
     circle(gray_img_disp, right_point, 5, Scalar(0), -1);
+    circle(gray_img_disp, pts_2d[0], 5, Scalar(255, 0, 255), -1);
+    circle(gray_img_disp, pts_2d[1], 5, Scalar(255, 0, 255), -1);
 
     resize(gray_img_disp, gray_img_disp, Size(), 0.5, 0.5);
     // cout << P << endl;
@@ -532,7 +582,7 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     return true;
 }
 
-void StereoLoc::drawLines(const vector<Vec2f>& lines, Mat& out_img, int line_width)
+void StereoLoc::drawLines(const vector<Vec2f>& lines, Mat& out_img, int line_width, const Scalar& color)
 {
     float line_length = sqrt(out_img.cols * out_img.cols + out_img.rows * out_img.rows);
     for( size_t i = 0; i < lines.size(); i++ )
@@ -546,11 +596,11 @@ void StereoLoc::drawLines(const vector<Vec2f>& lines, Mat& out_img, int line_wid
 		pt1.y = cvRound(y0 + line_length*(a));
 		pt2.x = cvRound(x0 - line_length*(-b));
 		pt2.y = cvRound(y0 - line_length*(a));
-		line(out_img, pt1, pt2, Scalar(255), line_width, CV_AA);
+		line(out_img, pt1, pt2, color, line_width, CV_AA);
 	}
 }
 
-void StereoLoc::drawLine(const Vec2f& l, Mat& out_img, int line_width)
+void StereoLoc::drawLine(const Vec2f& l, Mat& out_img, int line_width, const Scalar& color)
 {
     float line_length = sqrt(out_img.cols * out_img.cols + out_img.rows * out_img.rows);
 
@@ -563,7 +613,7 @@ void StereoLoc::drawLine(const Vec2f& l, Mat& out_img, int line_width)
     pt1.y = cvRound(y0 + line_length*(a));
     pt2.x = cvRound(x0 - line_length*(-b));
     pt2.y = cvRound(y0 - line_length*(a));
-    line(out_img, pt1, pt2, Scalar(255, 0, 0), line_width, CV_AA);
+    line(out_img, pt1, pt2, color, line_width, CV_AA);
 }
 
 Point2f StereoLoc::calcLineInsection(const Vec2f& line1, const Vec2f& line2)
@@ -739,76 +789,84 @@ bool StereoLoc::judgeVerticalLines(vector<Vec2f>& vertical_lines, const Mat& img
     {
         gray_img = img.clone();
     }
-    
-    // Sobel(gray_img, vertical_edges, CV_8UC1, 1, 0, 3);
-    // // imshow("vertical_edges", vertical_edges);
-    // Mat vertical_edges_disp;
-    // resize(vertical_edges, vertical_edges_disp, Size(), 0.5, 0.5);
-    // imshow("vertical_edges_disp", vertical_edges_disp);
-    // for(auto it = vertical_lines.begin(); it != vertical_lines.end();)
-    // {
-    //     Mat line_mat(img.size(), CV_8UC1, Scalar(0));
-    //     drawLine(*it, line_mat, 1);
-    //     Mat vote_mat;
-    //     bitwise_and(line_mat, vertical_edges, vote_mat);
-        
-    //     Mat img_roi;
-    //     img.copyTo(img_roi, vote_mat);
-
-    //     int cur_vote = countNonZero(vote_mat);
-
-    //     if(cur_vote < img.rows / 5)
-    //     {
-    //         it = vertical_lines.erase(it);
-    //     }
-    //     else
-    //     {
-    //         it++;
-    //     }
-        
-    // }
-
 
     vector<pair<Vec2f, Vec2f>> line_pairs;
     for(int i = 0; i < vertical_lines.size() - 1; i++)
     {
         for(int j = i + 1; j < vertical_lines.size(); j++)
         {
-            if(fabs(vertical_lines[i][0] - vertical_lines[j][0]) > img.rows / 3)
+            float dist = calcTwoVerticalLineDist(vertical_lines[i], vertical_lines[j], img.rows);
+
+            if(dist < img.cols / 100)
                 continue;
-            if(fabs(vertical_lines[i][0] - vertical_lines[j][0]) < 5)
+            if(dist > img.cols / 10)
                 continue;
+
+            float left_theta = vertical_lines[i][1];
+            if(left_theta > 3)
+            {
+                left_theta -= CV_PI;
+            }
+            float right_theta = vertical_lines[j][1];
+            if(right_theta > 3)
+            {
+                right_theta -= CV_PI;
+            }
+            if(fabs(left_theta - right_theta) >= 0.01)
+                continue;
+
             if(hasInsection(vertical_lines[i], vertical_lines[j], img.rows))
                 continue;
             line_pairs.push_back(make_pair(vertical_lines[i], vertical_lines[j]));
         }
     }
 
-    math_tools::GuassainDistribution theta_gd(0, 0.05), rho_dist_gd(1700, 100);
+    if(line_pairs.size() < 2)
+    {
+        cout << "[judgeVerticalLines]: can't find valid line pairs ." << endl;
+        return false;
+    }
+
+    math_tools::GuassainDistribution theta_gd(0, 0.05), width_gd(0, 5);
     math_tools::LogisticRegression dist_lg(img.cols / 5, img.cols/ 20);
     float max_prob = -1;
     pair<int, int> max_prob_index(-1, -1);
-    cout << line_pairs.size() << endl;
+    // cout << line_pairs.size() << endl;
     for(int i = 0; i < line_pairs.size()-1; i++)
     {
         for(int j = i + 1; j < line_pairs.size(); j++)
         {
-            // float theta_prob1 = theta_gd.CalcProbability(line_pairs[i].first[1] - line_pairs[i].second[1]);
-            // float theta_prob2 = theta_gd.CalcProbability(line_pairs[j].first[1] - line_pairs[j].second[1]);
-        
-            float rho_diff_prob = dist_lg.CalcProbability(fabs(line_pairs[i].first[0] - line_pairs[j].second[0]));
+            float pair_dist = calcTwoVerticalLineDist(line_pairs[i].first, line_pairs[j].first, img.rows);
 
-            // float rho_dist_prob = rho_dist_gd.CalcProbability(line_pairs[i].first[0] - line_pairs[j].second[0]);
-
-            if(fabs(line_pairs[i].first[0] - line_pairs[j].second[0]) < img.rows / 3)
+            if(pair_dist < img.rows / 3)
                 continue;
 
-            float cur_prob = rho_diff_prob;
+            float left_pair_theta = line_pairs[i].first[1];
+            if(left_pair_theta > 3)
+            {
+                left_pair_theta -= CV_PI;
+            }
+            float right_pair_theta = line_pairs[j].first[1];
+            if(right_pair_theta > 3)
+            {
+                right_pair_theta -= CV_PI;
+            }
+            if(fabs(left_pair_theta - right_pair_theta) >= 0.02)
+                continue;
 
-            cout << "-------" << endl;
+            float left_dist = calcTwoVerticalLineDist(line_pairs[i].first, line_pairs[i].second, img.rows);
+            float right_dist = calcTwoVerticalLineDist(line_pairs[j].first, line_pairs[j].second, img.rows);
+            float pilliar_width_diff_prob = width_gd.CalcProbability(left_dist - right_dist);
+
+            float rho_dist_prob = dist_lg.CalcProbability(pair_dist);
+            // cout << pilliar_width_diff_prob << endl;
+
+            float cur_prob = rho_dist_prob * pilliar_width_diff_prob;
+
+            // cout << "-------" << endl;
             // cout << line_pairs[i].first[1] - line_pairs[i].second[1] << ", " << theta_prob1 << endl;
             // cout << line_pairs[j].first[1] - line_pairs[j].second[1] << ", " << theta_prob2 << endl;
-            cout << rho_diff_prob << endl;
+            // cout << rho_diff_prob << endl;
             // cout << rho_dist_prob << endl;
             if(cur_prob > max_prob)
             {
@@ -819,6 +877,9 @@ bool StereoLoc::judgeVerticalLines(vector<Vec2f>& vertical_lines, const Mat& img
             }
         }
     }
+
+    // cout << "best pair is: " << max_prob_index.first << ", " <<max_prob_index.second << endl;
+
     vertical_lines[0] = line_pairs[max_prob_index.first].first;
     vertical_lines[1] = line_pairs[max_prob_index.first].second;
     vertical_lines[2] = line_pairs[max_prob_index.second].first;
@@ -830,23 +891,21 @@ bool StereoLoc::judgeVerticalLines(vector<Vec2f>& vertical_lines, const Mat& img
 bool StereoLoc::judgeHorizonLines(vector<cv::Vec2f>& horizon_lines, const Mat& img)
 {
     Mat horizon_edges;
-    Sobel(img, horizon_edges, CV_8UC1, 0, 1, 3);
+    // Sobel(img, horizon_edges, CV_8UC1, 0, 1, 3);
+    Canny(img, horizon_edges, Canny_lowThres_+40, Canny_highThres_ + 20);
     // Sobel(img, horizon_edges_16S, CV_16SC1, 0, 1, 3);
-
-
+    
     if(!is_sim_)
     {
-        threshold(horizon_edges, horizon_edges, 120, 255, THRESH_BINARY);
-        Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
-        Mat bin_img_closed;
-        morphologyEx(horizon_edges, horizon_edges, MORPH_OPEN, element);
-        erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
-        element = getStructuringElement(MORPH_RECT, Size(2, 2));
-        erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
+        // threshold(horizon_edges, horizon_edges, 120, 255, THRESH_BINARY);
+        // Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
+        // Mat bin_img_closed;
+        // morphologyEx(horizon_edges, horizon_edges, MORPH_OPEN, element);
+        // erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
+        // element = getStructuringElement(MORPH_RECT, Size(2, 2));
+        // erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
     }
 
-    Mat horizon_edges_disp;
-    resize(horizon_edges, horizon_edges_disp, Size(), 0.5, 0.5);
     // imshow("horizon_edges", horizon_edges_disp);
     // imshow("horizon_edges_16S", horizon_edges_16S);
 
@@ -857,7 +916,7 @@ bool StereoLoc::judgeHorizonLines(vector<cv::Vec2f>& horizon_lines, const Mat& i
     for(int i = 0; i < horizon_lines.size(); i++)
     {
         Mat line_mat(img.size(), CV_8UC1, Scalar(0));
-        drawLine(horizon_lines[i], line_mat, 1);
+        drawLine(horizon_lines[i], line_mat, 1, Scalar(255, 255, 255));
         Mat vote_mat;
 
         bitwise_and(line_mat, horizon_edges, vote_mat);
@@ -873,6 +932,16 @@ bool StereoLoc::judgeHorizonLines(vector<cv::Vec2f>& horizon_lines, const Mat& i
         float vote_prob = vote_lr.CalcProbability(cur_vote);
         float val_prob = val_lr.CalcProbability(average_val);
         float cur_prob = vote_prob;
+
+
+        /***** disp *****/
+        // Mat horizon_edges_disp = horizon_edges.clone();
+        // cvtColor(horizon_edges_disp, horizon_edges_disp, COLOR_GRAY2BGR);
+        // drawLine(horizon_lines[i], horizon_edges_disp, 2, Scalar(255, 0, 0));
+        // cout << cur_vote << endl;
+        // resize(horizon_edges_disp, horizon_edges_disp, Size(), 0.5, 0.5);
+        // imshow("horizon_edges", horizon_edges_disp);
+        // waitKey(0);
 
         // cout << vote_prob << endl;
         // cout << val_prob << endl;
@@ -902,13 +971,19 @@ bool StereoLoc::hasInsection(cv::Vec2f& lhs, cv::Vec2f& rhs, int img_rows)
     float l_x_bottom =  l_x0 + (l_y0 - img_rows) * tan(l_theta);
 
     float r_rho = rhs[0], r_theta = rhs[1];
-    float r_x0 = cos(l_theta)*r_rho, r_y0 = sin(r_theta)*r_rho;
+    float r_x0 = cos(r_theta)*r_rho, r_y0 = sin(r_theta)*r_rho;
     float r_x_top = r_x0 + r_y0 * tan(r_theta);
     float r_x_bottom =  r_x0 + (r_y0 - img_rows) * tan(r_theta);
 
     // cout << l_x_top << ", " << r_x_top << endl;
     // cout << l_x_bottom << ", " << r_x_bottom << endl;
     // cout << "---------" << endl;
+
+    if(fabs(l_x_top - r_x_top) <= 2)
+        return false;
+
+    if(fabs(l_x_bottom - r_x_bottom) <= 2)
+        return false;
 
     if((l_x_top - r_x_top) * (l_x_bottom - r_x_bottom) >= 0)
         return false;
@@ -982,4 +1057,21 @@ void StereoLoc::removeNet(const Mat& img, Mat& out_img)
 
     // resize(net_mask, net_mask, Size(), 0.5, 0.5);
     // imshow("net_mask", net_mask);
+}
+
+
+float StereoLoc::calcTwoVerticalLineDist(cv::Vec2f& lhs, cv::Vec2f& rhs, int img_rows)
+{
+    float l_rho = lhs[0], l_theta = lhs[1];
+    float l_x0 = cos(l_theta)*l_rho, l_y0 = sin(l_theta)*l_rho;
+    float l_x_top = l_x0 + l_y0 * tan(l_theta);
+    float l_x_bottom =  l_x0 + (l_y0 - img_rows) * tan(l_theta);
+    float l_dist = (l_x_top + l_x_bottom) / 2;
+
+    float r_rho = rhs[0], r_theta = rhs[1];
+    float r_x0 = cos(r_theta)*r_rho, r_y0 = sin(r_theta)*r_rho;
+    float r_x_top = r_x0 + r_y0 * tan(r_theta);
+    float r_x_bottom =  r_x0 + (r_y0 - img_rows) * tan(r_theta);
+    float r_dist = (r_x_top + r_x_bottom) / 2;
+    return fabs(l_dist - r_dist);
 }

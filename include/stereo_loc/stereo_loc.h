@@ -56,8 +56,8 @@ private:
      * @param out_img [input/output] image that where draw lines on.
      * @param line_width [input] line widthwe
      */
-    void drawLines(const std::vector<cv::Vec2f>& lines, cv::Mat& out_img, int line_width);
-    void drawLine(const cv::Vec2f& line, cv::Mat& out_img, int line_width);
+    void drawLines(const std::vector<cv::Vec2f>& lines, cv::Mat& out_img, int line_width, const cv::Scalar& color);
+    void drawLine(const cv::Vec2f& line, cv::Mat& out_img, int line_width, const cv::Scalar& color);
     /**
      * @brief Use line insection to get corners.
      * 
@@ -115,6 +115,8 @@ private:
     bool hasInsection(cv::Vec2f& lhs, cv::Vec2f& rhs, int img_rows);
 
     void removeNet(const cv::Mat& img, cv::Mat& out_img);
+
+    float calcTwoVerticalLineDist(cv::Vec2f& lhs, cv::Vec2f& rhs, int img_rows);
 
     cv::Ptr<cv::SimpleBlobDetector> blob_detector_;
     cv::SimpleBlobDetector::Params blob_params_;

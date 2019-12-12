@@ -23,8 +23,8 @@ int main()
     // StereoLoc sl("/home/cm/Workspaces/stereo_loc/src/stereo_loc/config/gazebo.yaml");
     // sl.CalcPose(left_img, right_img);
 
-    Mat left_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/left cam/1-1.bmp");
-    Mat right_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/right cam/1-1.bmp");
+    Mat left_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/left cam/4-1.bmp");
+    Mat right_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/right cam/4-1.bmp");
 
     StereoLoc sl("/home/cm/Workspaces/stereo_loc/src/stereo_loc/config/real.yaml");
     sl.CalcPose(left_img, right_img);
