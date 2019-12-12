@@ -71,3 +71,8 @@ target_link_libraries(test_loc
   ${OpenCV_LIBS}
   stereo_loc
 )
+
+add_executable(fit_line src/fit_line.cpp)
+target_link_libraries(fit_line
+  ${OpenCV_LIBS}
+)

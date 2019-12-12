@@ -40,13 +40,13 @@ blob_minInertiaRatio: 0.2
 blob_minConvexity: 0.8
 
 # Canny parameters
-Canny_lowThres: 150
-Canny_highThres: 200
+Canny_lowThres: 80
+Canny_highThres: 160
 
 # Line method parameters
-line_roi_size: 120
+line_roi_size: 100
 
 # HoughLine parameters
-Hough_minLength: 100
+Hough_minLength: 80
 
 keypoint_thres: 40

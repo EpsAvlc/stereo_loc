@@ -24,73 +24,6 @@
 using namespace std;
 using namespace cv;
 
-bool checkEllipseShape(Mat src,vector<Point> contour,RotatedRect ellipse,double ratio=0.01)
-{
-	//get all the point on the ellipse point
-	vector<Point> ellipse_point;
-
-	//get the parameter of the ellipse
-	Point2f center = ellipse.center;
-	double a_2 = pow(ellipse.size.width*0.5,2);
-	double b_2 = pow(ellipse.size.height*0.5,2);
-	double ellipse_angle = (ellipse.angle*3.1415926)/180;
-	
-
-	//the uppart
-	for(int i=0;i<ellipse.size.width;i++)
-	{
-		double x = -ellipse.size.width*0.5+i;
-		double y_left = sqrt( (1 - (x*x/a_2))*b_2 );
-
-		//rotate
-        //[ cos(seta) sin(seta)]
-        //[-sin(seta) cos(seta)]
-        cv::Point2f rotate_point_left;
-        rotate_point_left.x =  cos(ellipse_angle)*x - sin(ellipse_angle)*y_left;
-        rotate_point_left.y = +sin(ellipse_angle)*x + cos(ellipse_angle)*y_left;
-
-		//trans
-		rotate_point_left += center;
-
-		//store
-		ellipse_point.push_back(Point(rotate_point_left));
-	}
-	//the downpart
-	for(int i=0;i<ellipse.size.width;i++)
-	{
-		double x = ellipse.size.width*0.5-i;
-		double y_right = -sqrt( (1 - (x*x/a_2))*b_2 );
-
-		//rotate
-        //[ cos(seta) sin(seta)]
-        //[-sin(seta) cos(seta)]
-        cv::Point2f rotate_point_right;
-		rotate_point_right.x =  cos(ellipse_angle)*x - sin(ellipse_angle)*y_right;
-        rotate_point_right.y = +sin(ellipse_angle)*x + cos(ellipse_angle)*y_right;
-
-		//trans
-		rotate_point_right += center;
-
-		//store
-		ellipse_point.push_back(Point(rotate_point_right));
-
-	}
-
-
-	vector<vector<Point> > contours1;
-	contours1.push_back(ellipse_point);
-	//drawContours(src,contours1,-1,Scalar(255,0,0),2);
-
-	//match shape
-	double a0 = matchShapes(ellipse_point,contour,CV_CONTOURS_MATCH_I1,0);  
-	if (a0>0.01)
-	{
-		return true;      
-	}
-
-	return false;
-}
-
 StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
 {
     FileStorage fs(config_file_path, FileStorage::READ);
@@ -169,15 +102,6 @@ StereoLoc::StereoLoc(string config_file_path):goal_viewer_(config_file_path)
 
 bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
 {
-
-    /***** Equalization *****/
-    // Ptr<CLAHE> clahe = createCLAHE();
-    // Mat left_img_equalized, right_img_equalized;
-    // cvtColor(left_img, left_img_equalized, COLOR_BGR2GRAY);
-    // cvtColor(right_img, right_img_equalized, COLOR_BGR2GRAY);
-    // clahe->apply(left_img_equalized, left_img_equalized);
-    // clahe->apply(right_img_equalized, right_img_equalized);
-
     vector<Point2f> left_corners_2d, right_corners_2d;
     if(!findCornerSubPix(left_img, left_corners_2d))
     {
@@ -200,34 +124,34 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     +(left_corner_3d.z - right_corner_3d.z) * (left_corner_3d.z - right_corner_3d.z)) << endl;
 
     /***** line method ******/
-    // Eigen::MatrixXf left_P(3, 4); 
-    // left_P = Eigen::MatrixXf::Zero(3, 4);
-    // left_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
-    // Eigen::Matrix3f left_K_eigen;
-    // cv2eigen(left_K_, left_K_eigen);
-    // left_P = left_K_eigen * left_P;
-    // bool left_successed = calcCornersByLine(left_img, left_corner_3d, right_corner_3d, left_P, left_corners_2d);
+    Eigen::MatrixXf left_P(3, 4); 
+    left_P = Eigen::MatrixXf::Zero(3, 4);
+    left_P.block(0, 0, 3, 3) = Eigen::Matrix3f::Identity();
+    Eigen::Matrix3f left_K_eigen;
+    cv2eigen(left_K_, left_K_eigen);
+    left_P = left_K_eigen * left_P;
+    bool left_successed = calcCornersByLine(left_img, left_corner_3d, right_corner_3d, left_P, left_corners_2d);
 
-    // Eigen::MatrixXf right_P(3, 4);
-    // right_P = Eigen::MatrixXf::Zero(3, 4);
-    // right_P.block(0, 0, 3, 3) = R_;
-    // right_P.block(0, 3, 3, 1) = t_;
-    // Eigen::Matrix3f right_K_eigen;
-    // cv2eigen(right_K_, right_K_eigen);
-    // right_P = right_K_eigen * right_P;
-    // bool right_successed = calcCornersByLine(right_img, left_corner_3d, right_corner_3d, right_P, right_corners_2d);
+    Eigen::MatrixXf right_P(3, 4);
+    right_P = Eigen::MatrixXf::Zero(3, 4);
+    right_P.block(0, 0, 3, 3) = R_;
+    right_P.block(0, 3, 3, 1) = t_;
+    Eigen::Matrix3f right_K_eigen;
+    cv2eigen(right_K_, right_K_eigen);
+    right_P = right_K_eigen * right_P;
+    bool right_successed = calcCornersByLine(right_img, left_corner_3d, right_corner_3d, right_P, right_corners_2d);
 
-    // if(!(right_successed && left_successed))
-    //     return false;
+    if(!(right_successed && left_successed))
+        return false;
 
-    // left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
-    // right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
+    left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
+    right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
-    // cout << left_corner_3d << endl;
-    // cout << right_corner_3d << endl;
-    // cout << sqrt((left_corner_3d.x - right_corner_3d.x) * (left_corner_3d.x - right_corner_3d.x) + 
-    // (left_corner_3d.y - right_corner_3d.y) * (left_corner_3d.y - right_corner_3d.y)
-    // +(left_corner_3d.z - right_corner_3d.z) * (left_corner_3d.z - right_corner_3d.z)) << endl;
+    cout << left_corner_3d << endl;
+    cout << right_corner_3d << endl;
+    cout << sqrt((left_corner_3d.x - right_corner_3d.x) * (left_corner_3d.x - right_corner_3d.x) + 
+    (left_corner_3d.y - right_corner_3d.y) * (left_corner_3d.y - right_corner_3d.y)
+    +(left_corner_3d.z - right_corner_3d.z) * (left_corner_3d.z - right_corner_3d.z)) << endl;
 
     // /***** for viewer *****/
     Eigen::Vector3f t;
@@ -265,19 +189,6 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
     Mat thres_img;
     blob_detector_->detect(img, key_corners);
 
-    // for(auto it = key_corners.begin(); it != key_corners.end();)
-    // {
-    //     uchar color = img.at<Vec3b>(it->pt)[0];
-    //     if(color < keypoint_thres_)
-    //     {
-    //         it = key_corners.erase(it); 
-    //     }
-    //     else
-    //     {
-    //         ++it;
-    //     }
-    // }
-
     // Mat kp_image;
     // drawKeypoints(img, key_corners, kp_image, Scalar(0, 0, 255),
     // DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
@@ -289,8 +200,6 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
     // resize(kp_image, kp_image, Size(), 0.5, 0.5);
     // imshow("keypoints", kp_image);
     // waitKey(0);
-
-
 
     /***** refine keypoints *****/
     const float dilate_ratio = 0.35f;
@@ -306,7 +215,7 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
 
         cvtColor(roi, roi, COLOR_BGR2GRAY);
         // GaussianBlur(roi, roi, Size(3,3), 1);
-        imshow("roi", roi);
+        // imshow("roi", roi);
         Mat bin_roi;
         threshold(roi, bin_roi, 4, 255, THRESH_BINARY_INV|THRESH_OTSU);
         vector<vector<Point>> contours;
@@ -330,13 +239,13 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
         }
         Mat contour_mat(bin_roi.size(), CV_8UC1, Scalar(0));
         drawContours(contour_mat, contours, max_area_index, Scalar(255), -1);
-        imshow("bin_roi", bin_roi);
+        // imshow("bin_roi", bin_roi);
  
 
         Point2f final_corner = calcCentreOfGravity(contour_mat);
         circle(contour_mat, final_corner, 2, Scalar(0), -1);
-        imshow("contour_mat", contour_mat);
-        waitKey(0);
+        // imshow("contour_mat", contour_mat);
+        // waitKey(0);
         final_corner.x += c.x - roi_size / 2*(1 + dilate_ratio);
         final_corner.y += c.y - roi_size / 2*(1 + dilate_ratio);
         corners.push_back(final_corner);
@@ -415,18 +324,22 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     Mat bin_img;
     Mat img_no_net;
     Mat img_no_net_eq;
+
+
     if(!is_sim_)
     {
  
         removeNet(img, img_no_net);
+        equalizeHist(img_no_net, img_no_net_eq);
+        GaussianBlur(img_no_net_eq, img_no_net_eq, Size(7, 7), 0);
+
         // Mat thres_img;
-        // threshold(gray_img, thres_img, 100, 255, THRESH_BINARY|THRESH_OTSU);
+        // threshold(img_no_net_eq, thres_img, 30, 255, THRESH_BINARY|THRESH_OTSU);
         // Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
         // Mat bin_img_closed;
         // morphologyEx(thres_img, thres_img, MORPH_OPEN, element);
         // imshow("Thres", thres_img);
 
-        equalizeHist(img_no_net, img_no_net_eq);
         Canny(img_no_net_eq, bin_img, Canny_lowThres_, Canny_highThres_);
 
     }
@@ -434,10 +347,20 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     {
         Canny(gray_img, bin_img, Canny_lowThres_, Canny_highThres_);
     }
-    
-    Mat canny_img;
-    resize(bin_img, canny_img, Size(), 0.5, 0.5);
-    imshow("canny", canny_img);
+    vector<vector<Point>> Canny_contours;
+
+    findContours(bin_img, Canny_contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+    Mat Canny_Contour_mat(bin_img.size(), CV_8UC1, Scalar(0));
+    for(int i = 0; i < Canny_contours.size(); i++)
+    {
+        RotatedRect rr = minAreaRect(Canny_contours[i]);
+        if(rr.size.area() < 250)
+            continue;
+        drawContours(Canny_Contour_mat, Canny_contours, i, Scalar(255));
+    }
+
+    // resize(bin_img, canny_img, Size(), 0.5, 0.5);
+    // imshow("canny", canny_img);
 ;
     /***** construct mask *****/
     Eigen::MatrixXf pts_4d(4, 4);
@@ -474,12 +397,13 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     line(line_mask, pts_2d[1], pts_2d[3], Scalar(255), line_roi_size_);
     
     Mat bin_img_roi;
-    bin_img.copyTo(bin_img_roi, line_mask);
+    Canny_Contour_mat.copyTo(bin_img_roi, line_mask);
+
 
     /***** disp_roi ******/
-    // Mat bin_img_roi_disp;
-    // resize(bin_img_roi, bin_img_roi_disp, Size(), 0.5, 0.5);
-    // imshow("bin_img_roi", bin_img_roi);
+    Mat bin_img_roi_disp;
+    resize(bin_img_roi, bin_img_roi_disp, Size(), 0.5, 0.5);
+    imshow("bin_img_roi", bin_img_roi_disp);
 
 	vector<Vec2f> lines;
 	HoughLines(bin_img_roi, lines, 1, CV_PI/180, Hough_minLength_, 20, 0);
@@ -528,23 +452,32 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     /***** for horizon lines *****/
     // HoughLines(bin_img_roi, lines, 2, CV_PI/180, Hough_minLength_ + 75, 20, 0);
     vector<Vec2f> horizon_lines;
-    // for(int i = 0; i < lines.size(); i++)
-    // {
-    //     float rho = lines[i][0], theta = lines[i][1];
+    for(int i = 0; i < lines.size(); i++)
+    {
+        float rho = lines[i][0], theta = lines[i][1];
+        if(abs(rho) >= img.rows / 3*2)
+            continue;
 
-    //     if(fabs(theta - CV_PI / 2) < CV_PI/180 * 6)
-    //         horizon_lines.push_back(lines[i]);
-    // }
+        float kpt_theta = atan2(-(pts_2d[0].x - pts_2d[1].x), (pts_2d[0].y - pts_2d[1].y + 0.000001));
+    
+        if(fabs(theta - kpt_theta) < CV_PI/180 * 1)
+            horizon_lines.push_back(lines[i]);
+    }
     // drawLines(horizon_lines, gray_img_disp, 1, Scalar(0, 0, 255));
-    // judgeHorizonLines(horizon_lines, img_no_net_eq);
-    horizon_lines[0][1] = atan2(-(pts_2d[0].x - pts_2d[1].x), (pts_2d[0].y - pts_2d[1].y));
 
-    float y_left = pts_2d[0].y + pts_2d[0].x / tan(horizon_lines[0][1]);
-    circle(gray_img_disp, Point(0, y_left), 20, Scalar(0, 0, 255), -1);
-    horizon_lines[0][0] = y_left * sin(horizon_lines[0][1]);
+    judgeHorizonLines(horizon_lines, img_no_net_eq);
+    // horizon_lines[0][1] = atan2(-(pts_2d[0].x - pts_2d[1].x), (pts_2d[0].y - pts_2d[1].y + 0.000001));
+
+    // float y_left = pts_2d[0].y + pts_2d[0].x / tan(horizon_lines[0][1]);
+    // circle(gray_img_disp, Point(0, y_left), 20, Scalar(0, 0, 255), -1);
+    // horizon_lines[0][0] = y_left * sin(horizon_lines[0][1]);
     
     drawLines(horizon_lines, gray_img_disp, 3, Scalar(255, 0, 255));
+    Mat canny_img = Canny_Contour_mat.clone();
+    drawLines(horizon_lines, canny_img, 3, Scalar(255, 255, 255));
+    resize(canny_img, canny_img, Size(), 0.5, 0.5);
 
+    imshow("Canny_Countour_mat", canny_img);
     
     Vec2f horizon_pillar_line = horizon_lines[0];
     
@@ -856,12 +789,14 @@ bool StereoLoc::judgeVerticalLines(vector<Vec2f>& vertical_lines, const Mat& img
 
             float left_dist = calcTwoVerticalLineDist(line_pairs[i].first, line_pairs[i].second, img.rows);
             float right_dist = calcTwoVerticalLineDist(line_pairs[j].first, line_pairs[j].second, img.rows);
+            // if(fabs(left_dist - right_dist) > 10)
+            //     continue;
             float pilliar_width_diff_prob = width_gd.CalcProbability(left_dist - right_dist);
 
             float rho_dist_prob = dist_lg.CalcProbability(pair_dist);
             // cout << pilliar_width_diff_prob << endl;
 
-            float cur_prob = rho_dist_prob * pilliar_width_diff_prob;
+            float cur_prob = rho_dist_prob;
 
             // cout << "-------" << endl;
             // cout << line_pairs[i].first[1] - line_pairs[i].second[1] << ", " << theta_prob1 << endl;
@@ -890,20 +825,25 @@ bool StereoLoc::judgeVerticalLines(vector<Vec2f>& vertical_lines, const Mat& img
 
 bool StereoLoc::judgeHorizonLines(vector<cv::Vec2f>& horizon_lines, const Mat& img)
 {
+    if(horizon_lines.size() < 1)
+    {
+        cout << "[judgeHorizonLines]: Can't find enough horizon_lines!" << endl;
+        return false;
+    }
     Mat horizon_edges;
-    // Sobel(img, horizon_edges, CV_8UC1, 0, 1, 3);
-    Canny(img, horizon_edges, Canny_lowThres_+40, Canny_highThres_ + 20);
+    Sobel(img, horizon_edges, CV_8UC1, 0, 1, 3);
+    // Canny(img, horizon_edges, Canny_lowThres_+40, Canny_highThres_ + 20);
     // Sobel(img, horizon_edges_16S, CV_16SC1, 0, 1, 3);
     
     if(!is_sim_)
     {
-        // threshold(horizon_edges, horizon_edges, 120, 255, THRESH_BINARY);
-        // Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
-        // Mat bin_img_closed;
-        // morphologyEx(horizon_edges, horizon_edges, MORPH_OPEN, element);
-        // erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
-        // element = getStructuringElement(MORPH_RECT, Size(2, 2));
-        // erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
+        threshold(horizon_edges, horizon_edges, 120, 255, THRESH_BINARY);
+        Mat element = getStructuringElement(MORPH_RECT, Size(3, 3));
+        Mat bin_img_closed;
+        morphologyEx(horizon_edges, horizon_edges, MORPH_OPEN, element);
+        erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
+        element = getStructuringElement(MORPH_RECT, Size(2, 2));
+        erode(horizon_edges, horizon_edges, element, Point(-1, -1), 1);
     }
 
     // imshow("horizon_edges", horizon_edges_disp);
@@ -995,12 +935,12 @@ void StereoLoc::removeNet(const Mat& img, Mat& out_img)
 {
     Mat gray_img;
     cvtColor(img, gray_img, COLOR_BGR2GRAY);
-    Mat gray_img_eq;
+    // Mat gray_img_eq;
     // equalizeHist(gray_img, gray_img_eq);
     Mat thres_img;
     // threshold(gray_img, thres_img, 50, 255, THRESH_BINARY);
-    adaptiveThreshold(gray_img, thres_img, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 31, 0);
-    Mat element = getStructuringElement(MORPH_RECT, Size(7, 7));
+    adaptiveThreshold(gray_img, thres_img, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 31, -20);
+    Mat element = getStructuringElement(MORPH_RECT, Size(5, 5));
     Mat thres_img_closed;
     morphologyEx(thres_img, thres_img_closed, MORPH_OPEN, element);
     Mat not_thres_img_closed;
@@ -1030,8 +970,8 @@ void StereoLoc::removeNet(const Mat& img, Mat& out_img)
             {
                 int val_count = 0;
                 float val = 0;
-                for(int i = -3; i < 4; i++)
-                    for(int j = -3; j < 4; j++)
+                for(int i = -5; i < 6; i++)
+                    for(int j = -5; j < 6; j++)
                     {
                         if(i == 0 && j == 0)
                             continue;
@@ -1074,4 +1014,63 @@ float StereoLoc::calcTwoVerticalLineDist(cv::Vec2f& lhs, cv::Vec2f& rhs, int img
     float r_x_bottom =  r_x0 + (r_y0 - img_rows) * tan(r_theta);
     float r_dist = (r_x_top + r_x_bottom) / 2;
     return fabs(l_dist - r_dist);
+}
+
+
+bool StereoLoc::checkEllipseShape(Mat src,vector<Point> contour,RotatedRect ellipse,double ratio)
+{
+	//get all the point on the ellipse point
+	vector<Point> ellipse_point;
+
+	//get the parameter of the ellipse
+	Point2f center = ellipse.center;
+	double a_2 = pow(ellipse.size.width*0.5,2);
+	double b_2 = pow(ellipse.size.height*0.5,2);
+	double ellipse_angle = (ellipse.angle*3.1415926)/180;
+	
+	//the uppart
+	for(int i=0;i<ellipse.size.width;i++)
+	{
+		double x = -ellipse.size.width*0.5+i;
+		double y_left = sqrt( (1 - (x*x/a_2))*b_2 );
+
+        cv::Point2f rotate_point_left;
+        rotate_point_left.x =  cos(ellipse_angle)*x - sin(ellipse_angle)*y_left;
+        rotate_point_left.y = +sin(ellipse_angle)*x + cos(ellipse_angle)*y_left;
+
+		//trans
+		rotate_point_left += center;
+
+		//store
+		ellipse_point.push_back(Point(rotate_point_left));
+	}
+	//the downpart
+	for(int i=0;i<ellipse.size.width;i++)
+	{
+		double x = ellipse.size.width*0.5-i;
+		double y_right = -sqrt( (1 - (x*x/a_2))*b_2 );
+
+        cv::Point2f rotate_point_right;
+		rotate_point_right.x =  cos(ellipse_angle)*x - sin(ellipse_angle)*y_right;
+        rotate_point_right.y = +sin(ellipse_angle)*x + cos(ellipse_angle)*y_right;
+
+		//trans
+		rotate_point_right += center;
+
+		//store
+		ellipse_point.push_back(Point(rotate_point_right));
+
+	}
+
+
+	vector<vector<Point> > contours1;
+	contours1.push_back(ellipse_point);
+
+	double a0 = matchShapes(ellipse_point,contour,CV_CONTOURS_MATCH_I1,0);  
+	if (a0>0.01)
+	{
+		return true;      
+	}
+
+	return false;
 }
