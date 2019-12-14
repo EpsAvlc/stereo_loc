@@ -2,18 +2,17 @@
 
 is_sim: 0
 
-leftCam_fx: 7428.34
-leftCam_fy: 7427.63
-leftCam_cx: 1402.03
-leftCam_cy: 966.14
+leftCam_fx: 7659.0212
+leftCam_fy: 7656.9791
+leftCam_cx: 1247.7298
+leftCam_cy: 1232.1976
 
-rightCam_fx: 7330.00
-rightCam_fy: 7331.10
-rightCam_cx: 1364.98
-rightCam_cy: 1096.27
-
-t: [-0.6264872, 0.0069823, -0.0382271]
-R: [0.999854331209754, -0.0124309681176506, -0.0116956142529396,0.0130301171914674, 0.998529087200852, 0.0526296310058381,0.0110241737591638, -0.0527743597355004, 0.998545609648070]
+rightCam_fx: 7594.0811
+rightCam_fy: 7579.3093
+rightCam_cx: 1101.668352087246
+rightCam_cy: 1086.486861111444
+t: [-0.626286778973263,0.00275753311028631,0.0116718021098970]
+R: [0.999585500813415,-0.0129186969518309,-0.0257280747950902,0.0133208207807941,0.999790817771732,0.0155201943627662,0.0255221922514694,-0.0158564803282075,0.999548492937826]
 
 # for viewer
 window_width: 1280
@@ -35,13 +34,13 @@ blob_minThres: 20
 blob_maxThres: 150
 blob_minArea: 5000
 blob_maxArea: 15000
-blob_minCircularity: 0.15
-blob_minInertiaRatio: 0.2
+blob_minCircularity: 0.3
+blob_minInertiaRatio: 0.1
 blob_minConvexity: 0.8
 
 # Canny parameters
 Canny_lowThres: 80
-Canny_highThres: 160
+Canny_highThres: 150
 
 # Line method parameters
 line_roi_size: 100

@@ -119,6 +119,9 @@ private:
     float calcTwoVerticalLineDist(cv::Vec2f& lhs, cv::Vec2f& rhs, int img_rows);
 
     bool checkEllipseShape(cv::Mat src, std::vector<cv::Point> contour, cv::RotatedRect ellipse, double ratio=0.01);
+    
+
+    int fitLineRansac(const std::vector<cv::Point>& points, cv::Vec2f& res_line, int max_iter = 1000);
 
     cv::Ptr<cv::SimpleBlobDetector> blob_detector_;
     cv::SimpleBlobDetector::Params blob_params_;
