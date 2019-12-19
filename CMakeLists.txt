@@ -69,6 +69,7 @@ target_link_libraries(location_node
 add_executable(test_loc src/test_loc.cpp)
 target_link_libraries(test_loc
   ${OpenCV_LIBS}
+  ${catkin_LIBRARIES}
   stereo_loc
 )
 

@@ -140,20 +140,20 @@ bool StereoLoc::CalcPose(const cv::Mat& left_img, const cv::Mat& right_img)
     left_P = left_K_eigen * left_P;
     bool left_successed = calcCornersByLine(left_img, left_corner_3d, right_corner_3d, left_P, left_corners_2d);
 
-    // Eigen::MatrixXf right_P(3, 4);
-    // right_P = Eigen::MatrixXf::Zero(3, 4);
-    // right_P.block(0, 0, 3, 3) = R_;
-    // right_P.block(0, 3, 3, 1) = t_;
-    // Eigen::Matrix3f right_K_eigen;
-    // cv2eigen(right_K_, right_K_eigen);
-    // right_P = right_K_eigen * right_P;
-    // bool right_successed = calcCornersByLine(right_img, left_corner_3d, right_corner_3d, right_P, right_corners_2d);
+    Eigen::MatrixXf right_P(3, 4);
+    right_P = Eigen::MatrixXf::Zero(3, 4);
+    right_P.block(0, 0, 3, 3) = R_;
+    right_P.block(0, 3, 3, 1) = t_;
+    Eigen::Matrix3f right_K_eigen;
+    cv2eigen(right_K_, right_K_eigen);
+    right_P = right_K_eigen * right_P;
+    bool right_successed = calcCornersByLine(right_img, left_corner_3d, right_corner_3d, right_P, right_corners_2d);
 
-    // if(!(right_successed && left_successed))
-    //     return false;
+    if(!(right_successed && left_successed))
+        return false;
 
-    // left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
-    // right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
+    left_corner_3d = triangulation(left_corners_2d[0], right_corners_2d[0]);
+    right_corner_3d = triangulation(left_corners_2d[1], right_corners_2d[1]);
 
     // cout << left_corner_3d << endl;
     // cout << right_corner_3d << endl;
@@ -222,7 +222,7 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
 
         cvtColor(roi, roi, COLOR_BGR2GRAY);
         // GaussianBlur(roi, roi, Size(3,3), 1);
-        // imshow("roi", roi);
+
         Mat bin_roi;
         threshold(roi, bin_roi, 4, 255, THRESH_BINARY_INV|THRESH_OTSU);
         vector<vector<Point>> contours;
@@ -246,11 +246,15 @@ bool StereoLoc::findCornerSubPix(const cv::Mat& img, vector<Point2f>& corners)
         }
         Mat contour_mat(bin_roi.size(), CV_8UC1, Scalar(0));
         drawContours(contour_mat, contours, max_area_index, Scalar(255), -1);
+
+        // imshow("contour_mat", contour_mat);
         // imshow("bin_roi", bin_roi);
  
 
-        Point2f final_corner = calcCentreOfGravity(contour_mat);
-        circle(contour_mat, final_corner, 2, Scalar(0), -1);
+        // Point2f final_corner = calcCentreOfGravity(contour_mat);
+        // circle(contour_mat, final_corner, 2, Scalar(0), -1);
+
+        Point2f final_corner = fitEllipse(contours[max_area_index]).center;
         // imshow("contour_mat", contour_mat);
         // waitKey(0);
         final_corner.x += c.x - roi_size / 2*(1 + dilate_ratio);
@@ -369,10 +373,10 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
 
     Mat Canny_Contour_mat_disp = Canny_Contour_mat.clone();
     resize(Canny_Contour_mat_disp, Canny_Contour_mat_disp, Size(), 0.5, 0.5);
-    if(abs(P(0, 3)) < 1e-5)
-        imshow("canny_left", Canny_Contour_mat_disp);
-    else
-        imshow("canny_right", Canny_Contour_mat_disp);
+    // if(abs(P(0, 3)) < 1e-5)
+    //     imshow("canny_left", Canny_Contour_mat_disp);
+    // else
+    //     imshow("canny_right", Canny_Contour_mat_disp);
 
     /***** construct mask *****/
     Eigen::MatrixXf pts_4d(4, 6);
@@ -428,7 +432,7 @@ bool StereoLoc::calcCornersByLine(const Mat& img, const Point3f& left_corner_3d,
     /***** disp_roi ******/
     Mat left_pillor_roi_disp;
     resize(left_pillor_roi, left_pillor_roi_disp, Size(), 0.5, 0.5);
-    imshow("left_pillor_roi_disp", left_pillor_roi_disp);
+    // imshow("left_pillor_roi_disp", left_pillor_roi_disp);
 
     Mat gray_img_disp = gray_img.clone();
     cvtColor(gray_img_disp, gray_img_disp, COLOR_GRAY2BGR);

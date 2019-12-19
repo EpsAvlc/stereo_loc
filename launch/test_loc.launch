@@ -1,0 +1,7 @@
+<launch>
+  <node pkg="stereo_loc" type="test_loc" name="test_loc" output="screen">
+    <param name="left_cam_img" value="$(find stereo_loc)/imgs/left.bmp"/>
+    <param name="right_cam_img" value="$(find stereo_loc)/imgs/right.bmp"/>
+    <param name="config_file" value="$(find stereo_loc)/config/real.yaml"/>
+  </node>
+</launch>

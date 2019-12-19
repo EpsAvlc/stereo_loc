@@ -7,6 +7,8 @@
  * Author: EpsAvlc
  */
 
+#include <ros/ros.h>
+
 #include <iostream>
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -15,25 +17,20 @@
 
 using namespace std;
 using namespace cv;
-int main()
+int main(int argc, char** argv)
 {
-    Mat left_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/1213/left/9-1.bmp");
-    Mat right_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/1213/right/9-1.bmp");
+    ros::init(argc, argv, "test_loc");
+    ros::NodeHandle nh("~");
+    string lhs_img_str, rhs_img_str, config_str;
+    nh.param<string>("left_cam_img", lhs_img_str, "abc");
+    nh.param<string>("right_cam_img", rhs_img_str, "def");
+    nh.param<string>("config_file", config_str, "def");
 
-    StereoLoc sl("/home/cm/Workspaces/stereo_loc/src/stereo_loc/config/real.yaml");
+    Mat left_img = imread(lhs_img_str);
+    Mat right_img = imread(rhs_img_str);
+
+    StereoLoc sl(config_str);
     sl.CalcPose(left_img, right_img);
-
-    // StereoLoc sl("/home/cm/Workspaces/stereo_loc/src/stereo_loc/config/real.yaml");
-    // // imshow("left_img", left_img);
-    // for(int i = 1; i <= 11; i++)
-    // {
-    //     Mat left_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/1213/left/"+to_string(i)+"-2.bmp");
-    //     Mat right_img = imread("/home/cm/OneDrive/课程/计算机视觉/cv_project/Cv_Project3_Photos/1213/right/"+to_string(i)+"-2.bmp");
-
-    //     sl.CalcPose(left_img, right_img);
-    // // imshow("left_img", left_img);
-    // }
-
 
 
     waitKey(0);
